@@ -785,115 +785,112 @@ INDEX_HTML = (
                 {% endif %}
                 
                 {% if qa %}
-                <div class="block-container bg-qa">
-                    <h4>【问答题】</h4>
-                    <ul class="list-group">
-                    {% for item in qa %}
-                        {% set i = loop.index %}
-                        {% set checked = item['content'].get('checked', False) %}
-                        {% set tts_file = item['content'].get('tts_file') %}
-                        <li class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong>{{ i }}.</strong>
-                                    <span id="toggleText-qa-{{ i }}"
-                                          style="cursor:pointer;color:#0d6efd;margin-left:8px;"
-                                          onclick="toggleContent('qa','{{ i }}')">▷ 展开</span>
-                                </div>
-                                <div>
-                                    <!-- 原来的表单改为 -->
-<form action="{{ url_for('delete_knowledge') }}" method="post" 
-      style="display:inline-block; margin-right:4px;"
-      onsubmit="return deleteKnowledgeAjax(event, '{{ item['id'] }}')">
-    <input type="hidden" name="kid" value="{{ item['id'] }}">
-    <button type="submit" class="btn btn-danger btn-sm">删除</button>
-</form>
+    <div class="block-container bg-qa">
+        <h4>【问答题】</h4>
+        <ul class="list-group">
+            {% for item in qa %}
+                {% set i = loop.index %}
+                {% set checked = item['content'].get('checked', False) %}
+                {% set tts_file = item['content'].get('tts_file') %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ i }}.</strong>
+                            <span id="toggleText-qa-{{ i }}"
+                                  style="cursor:pointer;color:#0d6efd;margin-left:8px;"
+                                  onclick="toggleContent('qa','{{ i }}')">▷ 展开</span>
+                        </div>
+                        <div>
+                            <form action="{{ url_for('delete_knowledge') }}" method="post"
+                                  style="display:inline-block; margin-right:4px;"
+                                  onsubmit="return deleteKnowledgeAjax(event, '{{ item['id'] }}')">
+                                <input type="hidden" name="kid" value="{{ item['id'] }}">
+                                <button type="submit" class="btn btn-danger btn-sm">删除</button>
+                            </form>
 
-                                    <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
+                            <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
 
+                            {% if not checked %}
+                                <button type="button"
+                                        class="btn btn-success btn-sm"
+                                        id="checkButton-qa-{{ i }}"
+                                        onclick="checkTextAjax('{{ item['id'] }}','qa','{{ i }}')">
+                                    检查
+                                </button>
+                            {% else %}
+                                <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
+                            {% endif %}
 
-                                    {% if not checked %}
+                            <!-- TTS/收听/下载 操作区 -->
+                            <div id="ttsWrapper-qa-{{ i }}"
+                                 style="display:inline-block; float: right; margin-left:8px; margin-right:2px;">
+                                {% if not checked %}
+                                    <button type="button" class="btn btn-sm btn-secondary" disabled>转录</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" disabled>收听</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" disabled>下载</button>
+                                {% else %}
+                                    {% if tts_file %}
                                         <button type="button"
-                                                class="btn btn-success btn-sm"
-                                                      id="checkButton-qa-{{ i }}"
-                                                onclick="checkTextAjax('{{ item['id'] }}','qa','{{ i }}')">
-                                            检查
+                                                class="btn btn-sm btn-secondary"
+                                                disabled>已转录</button>
+                                        <button type="button"
+                                                class="btn btn-sm"
+                                                style="background-color:#b8860b;color:white;"
+                                                onclick="listenTTS('{{ item['id'] }}')">
+                                            收听
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm"
+                                                style="background-color:#ff1493;color:white;"
+                                                onclick="downloadTTS('{{ item['id'] }}')">
+                                            下载
                                         </button>
                                     {% else %}
-                                        <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
+                                        <button type="button"
+                                                class="btn btn-sm"
+                                                style="background-color:purple;color:white;"
+                                                id="ttsSpeakButton-{{ i }}"
+                                                onclick="ttsSpeak('{{ item['id'] }}','{{ i }}','qa')">
+                                            转录
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-secondary" disabled>收听</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" disabled>下载</button>
                                     {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="orange-text mt-2">
+                        当前所属：▶ {{ item['course'] }} ▶ {{ item['chapter'] }} ▶ {{ item['section'] }}
+                    </div>
+                    {% set full_text = "<strong>请简述: </strong>" ~ item['question'] ~ " <strong>| 答: </strong>" ~ item['answer'] %}
+                    {% if full_text|length > 126 %}
+                        {% set snippet_text = full_text[:165] ~ "..." %}
+                    {% else %}
+                        {% set snippet_text = full_text %}
+                    {% endif %}
+                    <div style="margin-top:10px;">
+                        <span id="snippet-qa-{{ i }}">{{ snippet_text|safe }}</span>
+                    </div>
+                    <div id="fullContent-qa-{{ i }}" style="display:none;margin-top:10px;">
+                        <div id="qa-question-{{ i }}">
+                            <strong>请简述:</strong> {{ item['question'] }}
+                        </div>
+                        <div id="qa-answer-{{ i }}">
+                            <strong>答:</strong> {{ item['answer'] }}
+                        </div>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+{% endif %}
+{% endif %}
 
-                                    <!-- TTS/收听/下载 操作区 -->
-                                    <div id="ttsWrapper-qa-{{ i }}"
-                                         style="display:inline-block; float: right; margin-left:8px; margin-right:2px;">
-                                        {% if not checked %}
-                                            <button type="button" class="btn btn-sm btn-secondary" disabled>转录</button>
-                                            <button type="button" class="btn btn-sm btn-secondary" disabled>收听</button>
-                                            <button type="button" class="btn btn-sm btn-secondary" disabled>下载</button>
-                                        {% else %}
-                                            {% if tts_file %}
-                                                <button type="button"
-                                                        class="btn btn-sm btn-secondary"
-                                                        disabled>已转录
-                                                </button>
-                                                <button type="button"
-                                                        class="btn btn-sm"
-                                                        style="background-color:#b8860b;color:white;"
-                                                        onclick="listenTTS('{{ item['id'] }}')">
-                                                    收听
-                                                </button>
-                                                <button type="button"
-                                                        class="btn btn-sm"
-                                                        style="background-color:#ff1493;color:white;"
-                                                        onclick="downloadTTS('{{ item['id'] }}')">
-                                                    下载
-                                                </button>
-                                            {% else %}
-                                                <button type="button"
-                                                        class="btn btn-sm"
-                                                        style="background-color:purple;color:white;"
-                                                        id="ttsSpeakButton-{{ i }}"
-                                                        onclick="ttsSpeak('{{ item['id'] }}','{{ i }}','qa')">
-                                                    转录
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-secondary" disabled>收听</button>
-                                                <button type="button" class="btn btn-sm btn-secondary" disabled>下载</button>
-                                            {% endif %}
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="orange-text mt-2">
-                                当前所属：▶ {{ item['course'] }} ▶ {{ item['chapter'] }} ▶ {{ item['section'] }}
-                            </div>
-                            {% set full_text = "<strong>请简述: </strong>" ~ item['question'] ~ " <strong>| 答: </strong>" ~ item['answer'] %}
-                            {% if full_text|length > 126 %}
-                                {% set snippet_text = full_text[:165] ~ "..." %}
-                            {% else %}
-                                {% set snippet_text = full_text %}
-                            {% endif %}
-                            <div style="margin-top:10px;">
-                                <span id="snippet-qa-{{ i }}">{{ snippet_text|safe }}</span>
-                            </div>
-                            <div id="fullContent-qa-{{ i }}" style="display:none;margin-top:10px;">
-                                <div id="qa-question-{{ i }}">
-                                    <strong>请简述:</strong> {{ item['question'] }}
-                                </div>
-                                <div id="qa-answer-{{ i }}">
-                                    <strong>答:</strong> {{ item['answer'] }}
-                                </div>
-                            </div>
-                        </li>
-                    {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-            {% endif %}
-        {% endif %}
-
-        <!-- 展开/收起 JS -->
-        <script>
-            function toggleContent(t, idx){
+<!-- 展开/收起 JS -->
+<script>
+function toggleContent(t, idx){
                 let snippetDiv = document.getElementById("snippet-"+t+"-"+idx);
                 let fullDiv = document.getElementById("fullContent-"+t+"-"+idx);
                 let toggleText = document.getElementById("toggleText-"+t+"-"+idx);
