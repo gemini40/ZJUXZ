@@ -946,7 +946,7 @@ function openEditModal(kid) {
         .catch(error => console.error('Error:', error));
 }
 
-// 3
+
 function saveEdit() {
     const formData = new FormData(document.getElementById('editKnowledgeForm'));
     fetch('/edit_knowledge_ajax', {
