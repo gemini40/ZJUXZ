@@ -441,7 +441,7 @@ INDEX_HTML = (
     BASE_HTML_HEAD
     + """
 <div class="row">
-     <!-- 左侧导航 -->
+    <!-- 左侧导航 -->
     <div class="col-md-2" style="position:fixed;left:0;top:56px;bottom:0;overflow-y:auto;background-color:#f8f9fa;">
         <div class="p-2">
             <h6 class="mt-2">快速导航栏</h6>
@@ -507,11 +507,11 @@ INDEX_HTML = (
                 <div class="mb-2">
                     <label class="form-label">类型</label><br>
                     <input type="radio" class="form-check-input" name="ktype" value="multiple_choice"
-                        {% if selected_type=='multiple_choice' %}checked{% endif %}> 选择
+                        {% if selected_type == 'multiple_choice' %}checked{% endif %}> 选择
                     <input type="radio" class="form-check-input" name="ktype" value="definition"
-                        {% if selected_type=='definition' %}checked{% endif %}> 名解
+                        {% if selected_type == 'definition' %}checked{% endif %}> 名解
                     <input type="radio" class="form-check-input" name="ktype" value="qa"
-                        {% if selected_type=='qa' %}checked{% endif %}> 问答
+                        {% if selected_type == 'qa' %}checked{% endif %}> 问答
                     <input type="radio" class="form-check-input" name="ktype" value="" id="typeAll" onclick="activateAll()"> 全部
                 </div>
                 <div class="mb-2">
@@ -524,7 +524,7 @@ INDEX_HTML = (
     </div>
 
     <!-- 右侧内容 -->
-    <div class="col-md-10 offset-md-2"  style="margin-top: 62px;">
+    <div class="col-md-10 offset-md-2" style="margin-top: 62px;">
         <h1 class="mb-4">浙大西溪学长-同等学力申硕学科综合题库系统</h1>
         <div class="mb-3">
             <button class="btn btn-success me-3" onclick="startBulkCheck()">1. 一键批量检查所有的文本字段</button>
@@ -536,7 +536,6 @@ INDEX_HTML = (
             {% if not results %}
                 <p>没有匹配的知识点。</p>
             {% else %}
-
                 {% if multiple_choices %}
                 <div class="block-container bg-mc">
                     <h4>【选择题】</h4>
@@ -575,7 +574,6 @@ INDEX_HTML = (
                                     </form>
 
                                     <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
-
 
                                     {% if not checked %}
                                         <button type="button" class="btn btn-success btn-sm"
@@ -644,33 +642,32 @@ INDEX_HTML = (
                                     <span id="mc-original-{{ i }}">{{ item['content']['original'] }}</span>
                                 </div>
                                {% if item['content']['multiple_choices'] %}
-    <hr>
-    <p><strong>已生成的单选题列表：</strong></p>
-    <ul id="question-list-container">
-        {% for q_obj in item['content']['multiple_choices'] %}
-        <li class="mb-3" id="question-{{ q_obj.id }}">
-            <strong>题目 {{ loop.index }}: </strong> {{ q_obj.question }}
-            <button class="btn btn-warning btn-sm delete-btn" 
-                    data-id="{{ q_obj.id }}" 
-                    onclick="deleteQuestion(this)">删除</button>
-            <ul>
-                <li>A. {{ q_obj.options.A }}</li>
-                <li>B. {{ q_obj.options.B }}</li>
-                <li>C. {{ q_obj.options.C }}</li>
-                <li>D. {{ q_obj.options.D }}</li>
-            </ul>
-            <div><strong>答案:</strong> {{ q_obj.answer }}</div>
-            <div><strong>解析:</strong> {{ q_obj.explanation }}</div>
-        </li>
-        {% if not loop.last %}
-        <div style="text-align:left;color:#b1a17057;">
-            --------------------------------------------
-        </div>
-        {% endif %}
-        {% endfor %}
-    </ul>
-{% endif %}
-
+                                   <hr>
+                                   <p><strong>已生成的单选题列表：</strong></p>
+                                   <ul id="question-list-container">
+                                       {% for q_obj in item['content']['multiple_choices'] %}
+                                       <li class="mb-3" id="question-{{ q_obj.id }}">
+                                           <strong>题目 {{ loop.index }}: </strong> {{ q_obj.question }}
+                                           <button class="btn btn-warning btn-sm delete-btn" 
+                                                   data-id="{{ q_obj.id }}" 
+                                                   onclick="deleteQuestion(this)">删除</button>
+                                           <ul>
+                                               <li>A. {{ q_obj.options.A }}</li>
+                                               <li>B. {{ q_obj.options.B }}</li>
+                                               <li>C. {{ q_obj.options.C }}</li>
+                                               <li>D. {{ q_obj.options.D }}</li>
+                                           </ul>
+                                           <div><strong>答案:</strong> {{ q_obj.answer }}</div>
+                                           <div><strong>解析:</strong> {{ q_obj.explanation }}</div>
+                                       </li>
+                                       {% if not loop.last %}
+                                       <div style="text-align:left;color:#b1a17057;">
+                                           --------------------------------------------
+                                       </div>
+                                       {% endif %}
+                                       {% endfor %}
+                                   </ul>
+                               {% endif %}
                                 {% if item['content'].get('last_error') %}
                                     <div class="text-danger">
                                         <strong>错误:</strong> {{ item['content']['last_error'] }}
@@ -707,7 +704,6 @@ INDEX_HTML = (
                                         <button type="submit" class="btn btn-danger btn-sm">删除</button>
                                     </form>
                                     <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
-
 
                                     {% if not checked %}
                                         <button type="button"
@@ -787,7 +783,7 @@ INDEX_HTML = (
                     </ul>
                 </div>
                 {% endif %}
-
+                
                 {% if qa %}
                 <div class="block-container bg-qa">
                     <h4>【问答题】</h4>
