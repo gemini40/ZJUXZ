@@ -890,62 +890,63 @@ INDEX_HTML = (
 
 <!-- 展开/收起 JS -->
 <script>
-function toggleContent(t, idx){
-                let snippetDiv = document.getElementById("snippet-"+t+"-"+idx);
-                let fullDiv = document.getElementById("fullContent-"+t+"-"+idx);
-                let toggleText = document.getElementById("toggleText-"+t+"-"+idx);
+// 展开/收起 JS
+function toggleContent(t, idx) {
+    let snippetDiv = document.getElementById("snippet-" + t + "-" + idx);
+    let fullDiv = document.getElementById("fullContent-" + t + "-" + idx);
+    let toggleText = document.getElementById("toggleText-" + t + "-" + idx);
 
-                if(!snippetDiv || !fullDiv || !toggleText) return;
+    if (!snippetDiv || !fullDiv || !toggleText) return;
 
-                if(fullDiv.style.display === "none"){
-                    fullDiv.style.display = "block";
-                    snippetDiv.style.display = "none";
-                    toggleText.textContent = "▷ 收起";
-                } else {
-                    fullDiv.style.display = "none";
-                    snippetDiv.style.display = "inline";
-                    toggleText.textContent = "▷ 展开";
-                }
-            }
-            function openEditModal(kid) {
+    if (fullDiv.style.display === "none") {
+        fullDiv.style.display = "block";
+        snippetDiv.style.display = "none";
+        toggleText.textContent = "▷ 收起";
+    } else {
+        fullDiv.style.display = "none";
+        snippetDiv.style.display = "inline";
+        toggleText.textContent = "▷ 展开";
+    }
+}
+
+function openEditModal(kid) {
     fetch(`/get_knowledge/${kid}`)
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                document.getElementById('editKid').value = data.kid;
-                document.getElementById('editCourse').value = data.course;
-                document.getElementById('editChapter').value = data.chapter;
-                document.getElementById('editSection').value = data.section;
-
-                if (data.type === 'multiple_choice') {
-                    document.getElementById('editStatement').value = data.content.original;
-                    document.querySelector('.field-group.multiple_choice').style.display = 'block';
-                    document.querySelector('.field-group.definition').style.display = 'none';
-                    document.querySelector('.field-group.qa').style.display = 'none';
-                } else if (data.type === 'definition') {
-                    document.getElementById('editTerm').value = data.content.term;
-                    document.getElementById('editExplanation').value = data.content.explanation;
-                    document.querySelector('.field-group.multiple_choice').style.display = 'none';
-                    document.querySelector('.field-group.definition').style.display = 'block';
-                    document.querySelector('.field-group.qa').style.display = 'none';
-                } else if (data.type === 'qa') {
-                    document.getElementById('editQuestion').value = data.content.question;
-                    document.getElementById('editAnswer').value = data.content.answer;
-                    document.querySelector('.field-group.multiple_choice').style.display = 'none';
-                    document.querySelector('.field-group.definition').style.display = 'none';
-                    document.querySelector('.field-group.qa').style.display = 'block';
-                }
-
-                new bootstrap.Modal(document.getElementById('editModal')).show();
-            } else {
+            if (!data.success) {
                 alert('加载知识点失败: ' + data.error);
+                return;
             }
+
+            const { kid, course, chapter, section, type, content } = data;
+            document.getElementById('editKid').value = kid;
+            document.getElementById('editCourse').value = course;
+            document.getElementById('editChapter').value = chapter;
+            document.getElementById('editSection').value = section;
+
+            const typeMap = {
+                'multiple_choice': ['editStatement', content.original, '.field-group.multiple_choice'],
+                'definition': ['editTerm', content.term, '.field-group.definition', 'editExplanation', content.explanation],
+                'qa': ['editQuestion', content.question, '.field-group.qa', 'editAnswer', content.answer]
+            };
+
+            Object.keys(typeMap).forEach(key => {
+                const elements = typeMap[key];
+                if (key === type) {
+                    document.getElementById(elements[0]).value = elements[1];
+                    if (elements[3]) document.getElementById(elements[3]).value = elements[4];
+                    document.querySelector(elements[2]).style.display = 'block';
+                } else {
+                    document.querySelector(elements[2]).style.display = 'none';
+                }
+            });
+
+            new bootstrap.Modal(document.getElementById('editModal')).show();
         })
-        .catch(error => {
-            console.error('Error:', error);
-        });
+        .catch(error => console.error('Error:', error));
 }
 
+// 3
 function saveEdit() {
     const formData = new FormData(document.getElementById('editKnowledgeForm'));
     fetch('/edit_knowledge_ajax', {
@@ -955,56 +956,15 @@ function saveEdit() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // 关闭模态框
             const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
             modal.hide();
-            // 整页刷新
             location.reload();
         } else {
             alert('保存失败: ' + data.error);
         }
     })
-    .catch(error => {
-        console.error('Error:', error);
-    });
+    .catch(error => console.error('Error:', error));
 }
-        </script>
-
-        <!-- 漂浮按钮(返回顶部/一键展开) -->
-        <div class="float-btn-container">
-            <button class="btn btn-custom w-100" onclick="scrollToTop()">返回顶部</button>
-            <button class="btn btn-custom w-100" onclick="toggleAllExpand()">一键展开/收起</button>
-        </div>
-        <script>
-            function scrollToTop(){
-                window.scrollTo({ top: 0, behavior: "smooth" });
-            }
-            let allExpanded = false;
-            function toggleAllExpand(){
-                const blocks = ["mc","def","qa"];
-                if(!allExpanded){
-                    blocks.forEach(type=>{
-                        let snippetNodes = document.querySelectorAll("[id^='snippet-"+type+"-']");
-                        let fullNodes = document.querySelectorAll("[id^='fullContent-"+type+"-']");
-                        fullNodes.forEach(el=>el.style.display="block");
-                        snippetNodes.forEach(el=>el.style.display="none");
-                        let toggleTexts= document.querySelectorAll("[id^='toggleText-"+type+"-']");
-                        toggleTexts.forEach(tt=>tt.textContent="▷ 收起");
-                    });
-                } else {
-                    blocks.forEach(type=>{
-                        let snippetNodes = document.querySelectorAll("[id^='snippet-"+type+"-']");
-                        let fullNodes = document.querySelectorAll("[id^='fullContent-"+type+"-']");
-                        fullNodes.forEach(el=>el.style.display="none");
-                        snippetNodes.forEach(el=>el.style.display="inline");
-                        let toggleTexts= document.querySelectorAll("[id^='toggleText-"+type+"-']");
-                        toggleTexts.forEach(tt=>tt.textContent="▷ 展开");
-                    });
-                }
-                allExpanded = !allExpanded;
-            }
-
-            document.addEventListener('DOMContentLoaded', function() {
 
 // 修改后的删除处理函数
 function deleteQuestion(button) {
@@ -1130,6 +1090,44 @@ function refreshQuestionList() {
             console.error('Error:', error);
         });
 }
+
+</script>
+
+<!-- 漂浮按钮(返回顶部/一键展开) -->
+<div class="float-btn-container">
+    <button class="btn btn-custom w-100" onclick="scrollToTop()">返回顶部</button>
+    <button class="btn btn-custom w-100" onclick="toggleAllExpand()">一键展开/收起</button>
+</div>
+      <script>
+            function scrollToTop(){
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+            let allExpanded = false;
+            function toggleAllExpand(){
+                const blocks = ["mc","def","qa"];
+                if(!allExpanded){
+                    blocks.forEach(type=>{
+                        let snippetNodes = document.querySelectorAll("[id^='snippet-"+type+"-']");
+                        let fullNodes = document.querySelectorAll("[id^='fullContent-"+type+"-']");
+                        fullNodes.forEach(el=>el.style.display="block");
+                        snippetNodes.forEach(el=>el.style.display="none");
+                        let toggleTexts= document.querySelectorAll("[id^='toggleText-"+type+"-']");
+                        toggleTexts.forEach(tt=>tt.textContent="▷ 收起");
+                    });
+                } else {
+                    blocks.forEach(type=>{
+                        let snippetNodes = document.querySelectorAll("[id^='snippet-"+type+"-']");
+                        let fullNodes = document.querySelectorAll("[id^='fullContent-"+type+"-']");
+                        fullNodes.forEach(el=>el.style.display="none");
+                        snippetNodes.forEach(el=>el.style.display="inline");
+                        let toggleTexts= document.querySelectorAll("[id^='toggleText-"+type+"-']");
+                        toggleTexts.forEach(tt=>tt.textContent="▷ 展开");
+                    });
+                }
+                allExpanded = !allExpanded;
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
 
 
         </script>
@@ -1543,7 +1541,7 @@ async function deleteKnowledgeAjax(ev, kid) {
 }
 
 
-            // 绑定选择题删除按钮事件（在文档加载完成后）
+// 绑定选择题删除按钮事件（在文档加载完成后）
 document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('click', function(e) {
         if (e.target.classList.contains('delete-btn')) {
@@ -1575,7 +1573,7 @@ document.addEventListener('DOMContentLoaded', function() {
     location.reload();
 
 } else {
-                        alert('删除失败: ' + (data.error || '未知错误'));
+        alert('删除失败: ' + (data.error || '未知错误'));
                     }
                 })
                 .catch(error => {
