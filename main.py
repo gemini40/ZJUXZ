@@ -1031,8 +1031,31 @@ function deleteQuestion(button) {
                 const questionElement = button.closest('.mb-3');
                 questionElement.remove();
 
-                // 更新题目列表
-                updateQuestionList(data.questions); // 更新题目列表
+                // 更新题目列表和序号
+                const questionListContainer = document.getElementById('question-list-container');
+                const updatedQuestions = data.questions;
+                questionListContainer.innerHTML = '';
+                updatedQuestions.forEach((q_obj, index) => {
+                    const questionItem = document.createElement('li');
+                    questionItem.classList.add('mb-3');
+                    questionItem.id = `question-${q_obj.id}`;
+                    questionItem.innerHTML = `
+                        <strong>题目 ${index + 1}: </strong> ${q_obj.question}
+                        <button class="btn btn-warning btn-sm delete-btn" data-id="${q_obj.id}" onclick="deleteQuestion(this)">删除</button>
+                        <ul>
+                            <li>A. ${q_obj.options.A}</li>
+                            <li>B. ${q_obj.options.B}</li>
+                            <li>C. ${q_obj.options.C}</li>
+                            <li>D. ${q_obj.options.D}</li>
+                        </ul>
+                        <div><strong>答案:</strong> ${q_obj.answer}</div>
+                        <div><strong>解析:</strong> ${q_obj.explanation}</div>
+                    `;
+                    questionListContainer.appendChild(questionItem);
+                });
+
+                // 调用更新序号函数
+                updateQuestionNumbers();
             } else {
                 alert('删除失败: ' + (data.error || '未知错误'));
             }
@@ -1041,6 +1064,20 @@ function deleteQuestion(button) {
             console.error('Error:', error);
         });
     }
+}
+
+// 更新题目序号的函数
+function updateQuestionNumbers() {
+    // 获取所有剩余的题目元素
+    const questionList = document.querySelectorAll('#question-list-container .mb-3');
+
+    // 重新编号
+    questionList.forEach((element, index) => {
+        const questionHeader = element.querySelector('strong');
+        if (questionHeader) {
+            questionHeader.textContent = `题目 ${index + 1}: `;
+        }
+    });
 }
 
 function updateQuestionList(updatedQuestions) {
