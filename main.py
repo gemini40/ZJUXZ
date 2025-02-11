@@ -1107,20 +1107,6 @@ function updateQuestionList(updatedQuestions) {
     });
 }
 
-
-function updateQuestionNumbers() {
-    // 获取所有剩余的题目元素
-    const questionList = document.querySelectorAll('#question-list-container .mb-3');
-
-    // 重新编号
-    questionList.forEach((element, index) => {
-        const questionHeader = element.querySelector('strong');
-        if (questionHeader) {
-            questionHeader.textContent = `题目 ${index + 1}: `;
-        }
-    });
-}
-
 function refreshQuestionList() {
     fetch('/get_question_list')  // 请求后端获取最新的题目列表
         .then(response => response.json())
