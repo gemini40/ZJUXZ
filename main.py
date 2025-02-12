@@ -284,7 +284,49 @@ def call_check_api_with_retry(client, messages, max_retries=10):
 app = Flask(__name__)
 
 # 初始化数据库
-init_db()
+def init_db():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS courses (
+        name TEXT PRIMARY KEY
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS chapters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        course_name TEXT,
+        FOREIGN KEY (course_name) REFERENCES courses (name)
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS sections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        chapter_id INTEGER,
+        FOREIGN KEY (chapter_id) REFERENCES chapters (id)
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS knowledge (
+        id TEXT PRIMARY KEY,
+        course_name TEXT,
+        chapter_name TEXT,
+        section_name TEXT,
+        type TEXT,
+        content TEXT,
+        checked INTEGER,
+        tts_file TEXT
+    )
+    ''')
+
+    conn.commit()
+    conn.close()
 
 def get_db_connection():
     conn = sqlite3.connect('database.db')
