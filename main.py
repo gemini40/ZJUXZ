@@ -9,6 +9,7 @@ import asyncio
 import websockets
 import subprocess
 import threading
+import sqlite3
 
 from flask import (
     Flask,
@@ -86,6 +87,11 @@ request_json = {
     },
 }
 
+
+def get_db_connection():
+    conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def parse_response(res, file):
     message_type = res[1] >> 4
@@ -277,7 +283,78 @@ def call_check_api_with_retry(client, messages, max_retries=10):
 ########################################################
 app = Flask(__name__)
 
-DATA_FILE = "jiaoyuxue.json"
+# 初始化数据库
+init_db()
+
+def get_db_connection():
+    conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def load_data():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM courses')
+    courses = {course['name']: {'chapters': []} for course in cursor.fetchall()}
+
+    cursor.execute('SELECT * FROM chapters')
+    chapters = cursor.fetchall()
+    for chapter in chapters:
+        courses[chapter['course_name']]['chapters'].append({'name': chapter['name'], 'sections': []})
+
+    cursor.execute('SELECT * FROM sections')
+    sections = cursor.fetchall()
+    for section in sections:
+        for chapter in courses[section['course_name']]['chapters']:
+            if chapter['name'] == section['chapter_name']:
+                chapter['sections'].append({'name': section['name'], 'knowledge': []})
+
+    cursor.execute('SELECT * FROM knowledge')
+    knowledge = cursor.fetchall()
+    for item in knowledge:
+        for chapter in courses[item['course_name']]['chapters']:
+            if chapter['name'] == item['chapter_name']:
+                for section in chapter['sections']:
+                    if section['name'] == item['section_name']:
+                        section['knowledge'].append({
+                            'type': item['type'],
+                            'id': item['id'],
+                            'content': json.loads(item['content']),
+                            'checked': bool(item['checked']),
+                            'tts_file': item['tts_file']
+                        })
+
+    conn.close()
+    return {'courses': courses, 'index': {item['id']: dict(item) for item in knowledge}}
+
+def save_data(data):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('DELETE FROM courses')
+    cursor.execute('DELETE FROM chapters')
+    cursor.execute('DELETE FROM sections')
+    cursor.execute('DELETE FROM knowledge')
+
+    for course_name, course_data in data['courses'].items():
+        cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
+        for chapter in course_data['chapters']:
+            cursor.execute('INSERT INTO chapters (name, course_name) VALUES (?, ?)', (chapter['name'], course_name))
+            for section in chapter['sections']:
+                cursor.execute('INSERT INTO sections (name, chapter_id) VALUES (?, (SELECT id FROM chapters WHERE name = ? AND course_name = ?))', (section['name'], chapter['name'], course_name))
+                for knowledge in section['knowledge']:
+                    cursor.execute('''
+                        INSERT INTO knowledge (id, course_name, chapter_name, section_name, type, content, checked, tts_file)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (knowledge['id'], course_name, chapter['name'], section['name'], knowledge['type'], json.dumps(knowledge['content']), int(knowledge['checked']), knowledge['tts_file']))
+
+    conn.commit()
+    conn.close()
+
+# 读取和保存数据示例
+data = load_data()
+save_data(data)
 
 BASE_HTML_HEAD = """
 <!DOCTYPE html>
@@ -2074,17 +2151,66 @@ data_lock = threading.Lock()  # 新增线程锁
 
 
 def load_data():
-    with data_lock:  # 添加锁
-        if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 0:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {"courses": {}, "index": {}}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM courses')
+    courses = {course['name']: {'chapters': []} for course in cursor.fetchall()}
+
+    cursor.execute('SELECT * FROM chapters')
+    chapters = cursor.fetchall()
+    for chapter in chapters:
+        courses[chapter['course_name']]['chapters'].append({'name': chapter['name'], 'sections': []})
+
+    cursor.execute('SELECT * FROM sections')
+    sections = cursor.fetchall()
+    for section in sections:
+        for chapter in courses[section['course_name']]['chapters']:
+            if chapter['name'] == section['chapter_name']:
+                chapter['sections'].append({'name': section['name'], 'knowledge': []})
+
+    cursor.execute('SELECT * FROM knowledge')
+    knowledge = cursor.fetchall()
+    for item in knowledge:
+        for chapter in courses[item['course_name']]['chapters']:
+            if chapter['name'] == item['chapter_name']:
+                for section in chapter['sections']:
+                    if section['name'] == item['section_name']:
+                        section['knowledge'].append({
+                            'type': item['type'],
+                            'id': item['id'],
+                            'content': json.loads(item['content']),
+                            'checked': bool(item['checked']),
+                            'tts_file': item['tts_file']
+                        })
+
+    conn.close()
+    return {'courses': courses, 'index': {item['id']: dict(item) for item in knowledge}}
 
 
 def save_data(data):
-    with data_lock:  # 添加锁
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('DELETE FROM courses')
+    cursor.execute('DELETE FROM chapters')
+    cursor.execute('DELETE FROM sections')
+    cursor.execute('DELETE FROM knowledge')
+
+    for course_name, course_data in data['courses'].items():
+        cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
+        for chapter in course_data['chapters']:
+            cursor.execute('INSERT INTO chapters (name, course_name) VALUES (?, ?)', (chapter['name'], course_name))
+            for section in chapter['sections']:
+                cursor.execute('INSERT INTO sections (name, chapter_id) VALUES (?, (SELECT id FROM chapters WHERE name = ? AND course_name = ?))', (section['name'], chapter['name'], course_name))
+                for knowledge in section['knowledge']:
+                    cursor.execute('''
+                        INSERT INTO knowledge (id, course_name, chapter_name, section_name, type, content, checked, tts_file)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (knowledge['id'], course_name, chapter['name'], section['name'], knowledge['type'], json.dumps(knowledge['content']), int(knowledge['checked']), knowledge['tts_file']))
+
+    conn.commit()
+    conn.close()
 
 
 @app.route("/")
