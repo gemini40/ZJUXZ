@@ -286,7 +286,7 @@ BASE_HTML_HEAD = """
     <meta charset="UTF-8">
     <title>浙大西溪学长-同等学力申硕知识管理</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
     <style>
         body {
          margin-top: 40px;
@@ -432,7 +432,7 @@ BASE_HTML_HEAD = """
 
 BASE_HTML_FOOT = """
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
 </body>
 </html>
 """
@@ -575,15 +575,15 @@ INDEX_HTML = (
 
                                     <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
 
-                                    {% if not checked %}
-                                        <button type="button" class="btn btn-success btn-sm"
-                                                        id="checkButton-mc-{{ i }}"
-                                                onclick="checkTextAjax('{{ item['id'] }}','mc','{{ i }}')">
-                                            检查
-                                        </button>
-                                    {% else %}
-                                        <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
-                                    {% endif %}
+                                   {% if not item['content']['checked'] %}
+                                                 <button type="button" class="btn btn-success btn-sm"
+                                                  id="checkButton-mc-{{ i }}"
+                                                 onclick="checkTextAjax('{{ item['id'] }}', 'mc', '{{ i }}')">
+                                                                    检查
+                                                    </button>
+                                                    {% else %}
+                                                     <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
+                                                    {% endif %}
 
                                     <!-- TTS/收听/下载 操作区 -->
                                     <div id="ttsWrapper-mc-{{ i }}"
@@ -629,7 +629,7 @@ INDEX_HTML = (
                             {% set prefix = "<strong>知识点：</strong>" %}
                             {% set full_text = item['content']['original'] %}
                             {% if full_text|length > 125 %}
-                                {% set snippet_text = prefix ~ full_text[:183] ~ "..." %}
+                                {% set snippet_text = prefix ~ full_text[:186] ~ "..." %}
                             {% else %}
                                 {% set snippet_text = prefix ~ full_text %}
                             {% endif %}
@@ -705,16 +705,15 @@ INDEX_HTML = (
                                     </form>
                                     <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
 
-                                    {% if not checked %}
-                                        <button type="button"
-                                                class="btn btn-success btn-sm"
-                                                        id="checkButton-def-{{ i }}"
-                                                onclick="checkTextAjax('{{ item['id'] }}','def','{{ i }}')">
-                                            检查
-                                        </button>
-                                    {% else %}
-                                        <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
-                                    {% endif %}
+                                   {% if not item['content']['checked'] %}
+                                                 <button type="button" class="btn btn-success btn-sm"
+                                                  id="checkButton-def-{{ i }}"
+                                                 onclick="checkTextAjax('{{ item['id'] }}', 'def', '{{ i }}')">
+                                                                    检查
+                                                    </button>
+                                                    {% else %}
+                                                     <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
+                                                    {% endif %}
 
                                     <!-- TTS/收听/下载 操作区 -->
                                     <div id="ttsWrapper-def-{{ i }}"
@@ -763,7 +762,7 @@ INDEX_HTML = (
                             {% set prefix_answer = "<strong>答：</strong>" %}
                             {% set full_text = prefix_question ~ item['term'] ~ " | " ~ prefix_answer ~ item['explanation'] %}
                             {% if full_text|length > 125 %}
-                                {% set snippet_text = full_text[:163] ~ "..." %}
+                                {% set snippet_text = full_text[:183] ~ "..." %}
                             {% else %}
                                 {% set snippet_text = full_text %}
                             {% endif %}
@@ -783,7 +782,7 @@ INDEX_HTML = (
                     </ul>
                 </div>
                 {% endif %}
-                
+
                 {% if qa %}
     <div class="block-container bg-qa">
         <h4>【问答题】</h4>
@@ -810,16 +809,17 @@ INDEX_HTML = (
 
                             <a href="#" class="btn btn-primary btn-sm" onclick="openEditModal('{{ item['id'] }}')" style="margin-right:4px;">修改</a>
 
-                            {% if not checked %}
-                                <button type="button"
-                                        class="btn btn-success btn-sm"
-                                        id="checkButton-qa-{{ i }}"
-                                        onclick="checkTextAjax('{{ item['id'] }}','qa','{{ i }}')">
-                                    检查
-                                </button>
+
+                            {% if not item['content']['checked'] %}
+                            <button type="button" class="btn btn-success btn-sm"
+                            id="checkButton-qa-{{ i }}"
+                            onclick="checkTextAjax('{{ item['id'] }}', 'qa', '{{ i }}')">
+                            检查
+                            </button>
                             {% else %}
-                                <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
+                            <button type="button" class="btn btn-secondary btn-sm" disabled>检查</button>
                             {% endif %}
+
 
                             <!-- TTS/收听/下载 操作区 -->
                             <div id="ttsWrapper-qa-{{ i }}"
@@ -865,7 +865,7 @@ INDEX_HTML = (
                     </div>
                     {% set full_text = "<strong>请简述: </strong>" ~ item['question'] ~ " <strong>| 答: </strong>" ~ item['answer'] %}
                     {% if full_text|length > 126 %}
-                        {% set snippet_text = full_text[:165] ~ "..." %}
+                        {% set snippet_text = full_text[:168] ~ "..." %}
                     {% else %}
                         {% set snippet_text = full_text %}
                     {% endif %}
@@ -888,251 +888,13 @@ INDEX_HTML = (
 {% endif %}
 {% endif %}
 
-<!-- 展开/收起 JS -->
-<script>
-// 展开/收起 JS
-function toggleContent(t, idx) {
-    let snippetDiv = document.getElementById("snippet-" + t + "-" + idx);
-    let fullDiv = document.getElementById("fullContent-" + t + "-" + idx);
-    let toggleText = document.getElementById("toggleText-" + t + "-" + idx);
-
-    if (!snippetDiv || !fullDiv || !toggleText) return;
-
-    if (fullDiv.style.display === "none") {
-        fullDiv.style.display = "block";
-        snippetDiv.style.display = "none";
-        toggleText.textContent = "▷ 收起";
-    } else {
-        fullDiv.style.display = "none";
-        snippetDiv.style.display = "inline";
-        toggleText.textContent = "▷ 展开";
-    }
-}
-
-function openEditModal(kid) {
-    fetch(`/get_knowledge/${kid}`)
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                alert('加载知识点失败: ' + data.error);
-                return;
-            }
-
-            const { kid, course, chapter, section, type, content } = data;
-            document.getElementById('editKid').value = kid;
-            document.getElementById('editCourse').value = course;
-            document.getElementById('editChapter').value = chapter;
-            document.getElementById('editSection').value = section;
-
-            const typeMap = {
-                'multiple_choice': ['editStatement', content.original, '.field-group.multiple_choice'],
-                'definition': ['editTerm', content.term, '.field-group.definition', 'editExplanation', content.explanation],
-                'qa': ['editQuestion', content.question, '.field-group.qa', 'editAnswer', content.answer]
-            };
-
-            Object.keys(typeMap).forEach(key => {
-                const elements = typeMap[key];
-                if (key === type) {
-                    document.getElementById(elements[0]).value = elements[1];
-                    if (elements[3]) document.getElementById(elements[3]).value = elements[4];
-                    document.querySelector(elements[2]).style.display = 'block';
-                } else {
-                    document.querySelector(elements[2]).style.display = 'none';
-                }
-            });
-
-            new bootstrap.Modal(document.getElementById('editModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-
-function saveEdit() {
-    const formData = new FormData(document.getElementById('editKnowledgeForm'));
-    fetch('/edit_knowledge_ajax', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
-            modal.hide();
-            location.reload();
-        } else {
-            alert('保存失败: ' + data.error);
-        }
-    })
-    .catch(error => console.error('Error:', error));
-}
-
-// 修改后的删除处理函数
-function deleteQuestion(button) {
-    const questionId = button.dataset.id;
-    if (confirm('确定要删除这个选择题吗？')) {
-        fetch('/delete_question', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ id: questionId }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // 删除当前题目元素
-                const questionElement = button.closest('.mb-3');
-                questionElement.remove();
-
-                // 更新题目列表和序号
-                const questionListContainer = document.getElementById('question-list-container');
-                const updatedQuestions = data.questions;
-                questionListContainer.innerHTML = '';
-                updatedQuestions.forEach((q_obj, index) => {
-                    const questionItem = document.createElement('li');
-                    questionItem.classList.add('mb-3');
-                    questionItem.id = `question-${q_obj.id}`;
-                    questionItem.innerHTML = `
-                        <strong>题目 ${index + 1}: </strong> ${q_obj.question}
-                        <button class="btn btn-warning btn-sm delete-btn" data-id="${q_obj.id}" onclick="deleteQuestion(this)">删除</button>
-                        <ul>
-                            <li>A. ${q_obj.options.A}</li>
-                            <li>B. ${q_obj.options.B}</li>
-                            <li>C. ${q_obj.options.C}</li>
-                            <li>D. ${q_obj.options.D}</li>
-                        </ul>
-                        <div><strong>答案:</strong> ${q_obj.answer}</div>
-                        <div><strong>解析:</strong> ${q_obj.explanation}</div>
-                    `;
-                    questionListContainer.appendChild(questionItem);
-                });
-
-                // 调用更新序号函数
-                updateQuestionNumbers();
-            } else {
-                alert('删除失败: ' + (data.error || '未知错误'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
-    }
-}
-
-// 更新题目序号的函数
-function updateQuestionNumbers() {
-    // 获取所有剩余的题目元素
-    const questionList = document.querySelectorAll('#question-list-container .mb-3');
-
-    // 重新编号
-    questionList.forEach((element, index) => {
-        const questionHeader = element.querySelector('strong');
-        if (questionHeader) {
-            questionHeader.textContent = `题目 ${index + 1}: `;
-        }
-    });
-}
-
-function updateQuestionList(updatedQuestions) {
-    // 获取页面中题目列表容器
-    const container = document.getElementById('question-list-container');
-    container.innerHTML = ''; // 清空当前的题目列表
-
-    // 重新渲染更新后的题目列表
-    updatedQuestions.forEach((q_obj, index) => {
-        const questionItem = document.createElement('li');
-        questionItem.classList.add('mb-3');
-        questionItem.innerHTML = `
-            <strong>题目 ${index + 1}: </strong> ${q_obj.question}
-            <button class="btn btn-warning btn-sm delete-btn" 
-                    data-id="${q_obj.id}" 
-                    onclick="deleteQuestion">删除</button>
-            <ul id="question-list-container">
-                <li>A. ${q_obj.options.A}</li>
-                <li>B. ${q_obj.options.B}</li>
-                <li>C. ${q_obj.options.C}</li>
-                <li>D. ${q_obj.options.D}</li>
-            </ul>
-            <div><strong>答案:</strong> ${q_obj.answer}</div>
-            <div><strong>解析:</strong> ${q_obj.explanation}</div>
-        `;
-        container.appendChild(questionItem);
-    });
-}
-
-function refreshQuestionList() {
-    fetch('/get_question_list')  // 请求后端获取最新的题目列表
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // 获取最新的题目列表
-                const questionList = data.questions;
-
-                // 获取页面中的题目容器并清空它
-                const container = document.getElementById('questionListContainer');
-                container.innerHTML = '';
-
-                // 循环生成题目并添加到容器中
-                questionList.forEach((question, index) => {
-                    const questionItem = document.createElement('li');
-                    questionItem.classList.add('mb-3');
-                    questionItem.innerHTML = `
-                        <strong>题目 ${index + 1}: </strong>${question.content}
-                        <button data-id="${question.id}" class="delete-btn" onclick="deleteQuestion(this)">删除</button>
-                    `;
-                    container.appendChild(questionItem);
-                });
-            } else {
-                alert('获取题目列表失败');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
-}
-
-</script>
-
-<!-- 漂浮按钮(返回顶部/一键展开) -->
 <div class="float-btn-container">
     <button class="btn btn-custom w-100" onclick="scrollToTop()">返回顶部</button>
     <button class="btn btn-custom w-100" onclick="toggleAllExpand()">一键展开/收起</button>
 </div>
-      <script>
-            function scrollToTop(){
-                window.scrollTo({ top: 0, behavior: "smooth" });
-            }
-            let allExpanded = false;
-            function toggleAllExpand(){
-                const blocks = ["mc","def","qa"];
-                if(!allExpanded){
-                    blocks.forEach(type=>{
-                        let snippetNodes = document.querySelectorAll("[id^='snippet-"+type+"-']");
-                        let fullNodes = document.querySelectorAll("[id^='fullContent-"+type+"-']");
-                        fullNodes.forEach(el=>el.style.display="block");
-                        snippetNodes.forEach(el=>el.style.display="none");
-                        let toggleTexts= document.querySelectorAll("[id^='toggleText-"+type+"-']");
-                        toggleTexts.forEach(tt=>tt.textContent="▷ 收起");
-                    });
-                } else {
-                    blocks.forEach(type=>{
-                        let snippetNodes = document.querySelectorAll("[id^='snippet-"+type+"-']");
-                        let fullNodes = document.querySelectorAll("[id^='fullContent-"+type+"-']");
-                        fullNodes.forEach(el=>el.style.display="none");
-                        snippetNodes.forEach(el=>el.style.display="inline");
-                        let toggleTexts= document.querySelectorAll("[id^='toggleText-"+type+"-']");
-                        toggleTexts.forEach(tt=>tt.textContent="▷ 展开");
-                    });
-                }
-                allExpanded = !allExpanded;
-            }
-
-            document.addEventListener('DOMContentLoaded', function() {
 
 
-        </script>
-
-        <!-- SSE进度弹窗 -->
+<!-- SSE进度弹窗 -->
         <div class="modal" tabindex="-1" id="progressModal">
           <div class="modal-dialog" style="margin-top:120px;">
             <div class="modal-content">
@@ -1152,7 +914,7 @@ function refreshQuestionList() {
           </div>
         </div>
 
-        <!-- 播放音频用的模态框 -->
+<!-- 播放音频用的模态框 -->
         <div class="modal" tabindex="-1" id="listenModal">
           <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1170,77 +932,129 @@ function refreshQuestionList() {
           </div>
         </div>
 
-        <script>
-            // 批量生成选择题
-            function startBulkConvert(){
-                let modal = new bootstrap.Modal(document.getElementById('progressModal'));
-                modal.show();
-                document.getElementById('progressText').innerText = '正在启动批量生成...';
-                let es = new EventSource("/bulk_convert_sse");
-                es.onmessage = function(e){
-                    let data = JSON.parse(e.data);
-                    if(data.done){
-                        document.getElementById('progressText').innerText =
-                            `完成！共需处理 ${data.total} 条，已处理完。`;
-                        es.close();
-                    } else {
-                        document.getElementById('progressText').innerText =
-                          `共需处理 ${data.total} 条，已处理 ${data.progress} 条，还剩 ${data.total - data.progress} 条...`;
-                    }
-                };
-                es.onerror = function(){
-                    document.getElementById('progressText').innerText =
-                        "出错：请检查网络或服务器！";
-                    es.close();
-                };
-            }
 
-            // 批量检查
-            function startBulkCheck(){
-                let modal = new bootstrap.Modal(document.getElementById('progressModal'));
-                modal.show();
-                document.getElementById('progressText').innerText = '正在启动批量检查...';
-                let es = new EventSource("/bulk_check_sse");
-                es.onmessage = function(e){
-                    let data = JSON.parse(e.data);
-                    if(data.done){
-                        document.getElementById('progressText').innerText =
-                            `完成！共需检查 ${data.total} 条，已处理完。`;
-                        es.close();
-                    } else {
-                        document.getElementById('progressText').innerText =
-                          `共需检查 ${data.total} 条，已处理 ${data.progress} 条，还剩 ${data.total - data.progress} 条...`;
-                    }
-                };
-                es.onerror = function(){
-                    document.getElementById('progressText').innerText =
-                        "出错：请检查网络或服务器！";
-                    es.close();
-                };
-            }
+<script>
+/* ========== 第一部分：返回顶部 & 一键展开/收起 ========== */
 
-            function refreshAfterClose(){
-                location.reload();
-            }
-        </script>
+// 返回顶部
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
-        <script>
-            // Ajax单条检查
-            async function checkTextAjax(kid, t, i) {
+// 一键展开/收起
+let allExpanded = false;
+
+function toggleAllExpand() {
+    const blocks = ["mc", "def", "qa"];
+
+    blocks.forEach(type => {
+        const snippetNodes = document.querySelectorAll(`[id^='snippet-${type}-']`);
+        const fullNodes = document.querySelectorAll(`[id^='fullContent-${type}-']`);
+        const toggleTexts = document.querySelectorAll(`[id^='toggleText-${type}-']`);
+
+        if (!allExpanded) {
+            // 展开所有内容
+            fullNodes.forEach(el => el.style.display = "block");
+            snippetNodes.forEach(el => el.style.display = "none");
+            toggleTexts.forEach(tt => tt.textContent = "▷ 收起");
+        } else {
+            // 收起所有内容
+            fullNodes.forEach(el => el.style.display = "none");
+            snippetNodes.forEach(el => el.style.display = "inline");
+            toggleTexts.forEach(tt => tt.textContent = "▷ 展开");
+        }
+    });
+
+    // 切换全局状态
+    allExpanded = !allExpanded;
+}
+
+function toggleContent(type, index) {
+    const snippet = document.getElementById(`snippet-${type}-${index}`);
+    const fullContent = document.getElementById(`fullContent-${type}-${index}`);
+    const toggleText = document.getElementById(`toggleText-${type}-${index}`);
+
+    // 依据当前显示状态进行切换
+    if (fullContent.style.display === "none" || fullContent.style.display === "") {
+        fullContent.style.display = "block";
+        snippet.style.display = "none";
+        toggleText.textContent = "▷ 收起";
+    } else {
+        fullContent.style.display = "none";
+        snippet.style.display = "inline";
+        toggleText.textContent = "▷ 展开";
+    }
+}
+
+
+/* ========== 第二部分：SSE 批量操作(批量检查、批量生成) ========== */
+
+// 打开模态框并开始批量生成
+function startBulkConvert() {
+    let modal = new bootstrap.Modal(document.getElementById('progressModal'));
+    modal.show();
+    document.getElementById('progressText').innerText = '正在启动批量生成...';
+
+    let es = new EventSource("/bulk_convert_sse");
+    es.onmessage = function(e) {
+        let data = JSON.parse(e.data);
+        if (data.done) {
+            document.getElementById('progressText').innerText =
+                `完成！共需处理 ${data.total} 条，已处理完。`;
+            es.close();
+        } else {
+            document.getElementById('progressText').innerText =
+                `共需处理 ${data.total} 条，已处理 ${data.progress} 条，还剩 ${data.total - data.progress} 条...`;
+        }
+    };
+    es.onerror = function() {
+        document.getElementById('progressText').innerText =
+            "出错：请检查网络或服务器！";
+        es.close();
+    };
+}
+
+// 打开模态框并开始批量检查
+function startBulkCheck() {
+    let modal = new bootstrap.Modal(document.getElementById('progressModal'));
+    modal.show();
+    document.getElementById('progressText').innerText = '正在启动批量检查...';
+
+    let es = new EventSource("/bulk_check_sse");
+    es.onmessage = function(e) {
+        let data = JSON.parse(e.data);
+        if (data.done) {
+            document.getElementById('progressText').innerText =
+                `完成！共需检查 ${data.total} 条，已处理完。`;
+            es.close();
+        } else {
+            document.getElementById('progressText').innerText =
+                `共需检查 ${data.total} 条，已处理 ${data.progress} 条，还剩 ${data.total - data.progress} 条...`;
+        }
+    };
+    es.onerror = function() {
+        document.getElementById('progressText').innerText =
+            "出错：请检查网络或服务器！";
+        es.close();
+    };
+}
+
+function refreshAfterClose(){
+}
+
+// Ajax 单条检查
+async function checkTextAjax(kid, t, i) {
     const buttonId = `checkButton-${t}-${i}`;
     const transcriptButtonId = `ttsSpeakButton-${i}`;
 
-    // “检查” & “转录”按钮
     const checkBtn = document.getElementById(buttonId);
     const ttsBtn = document.getElementById(transcriptButtonId);
 
-    // 1) 设置“检查中” + 小转圈
+    // 设置“检查中” + 小转圈，并禁用按钮以防二次点击
     if (checkBtn) {
         checkBtn.disabled = true;
-        checkBtn.innerHTML = `
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            检查中...
-        `;
+        checkBtn.innerHTML =
+            `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 检查中...`;
     }
     if (ttsBtn) {
         ttsBtn.disabled = true;
@@ -1256,7 +1070,8 @@ function refreshQuestionList() {
 
         if (!data.success) {
             alert("检查失败: " + (data.error || "未知错误"));
-            // 失败恢复
+
+            // 失败后恢复按钮状态，让用户可以重试
             if (checkBtn) {
                 checkBtn.innerHTML = "检查";
                 checkBtn.disabled = false;
@@ -1267,47 +1082,35 @@ function refreshQuestionList() {
             return;
         }
 
-        // 2) 后端返回类型,局部更新 DOM
-if (data.type === "definition") {
-    document.getElementById("def-term-" + i).textContent = data.term;
-    document.getElementById("def-exp-" + i).textContent = data.explanation;
-    const fullText = `<strong>请解释：</strong> ${data.term} | <strong>答：</strong> ${data.explanation}`;
-    const snippetText = fullText.length > 126
-        ? fullText.substring(0, 125) + '...'
-        : fullText;
-    document.getElementById(`snippet-def-${i}`).innerHTML = snippetText;
+        // ========== 如果检查成功 ==========
 
-} else if (data.type === "qa") {
-    document.getElementById("qa-question-" + i).innerHTML =
-        "<strong>请简述：</strong> " + data.question;
-    document.getElementById("qa-answer-" + i).innerHTML =
-        "<strong>答：</strong> " + data.answer;
-    const fullText = `<strong>请简述：</strong> ${data.question} | <strong>答:</strong> ${data.answer}`;
-    const snippetText = fullText.length > 126
-        ? fullText.substring(0, 125) + '...'
-        : fullText;
-    document.getElementById(`snippet-qa-${i}`).innerHTML = snippetText;
+        // (可选) 更新DOM，比如填充内容
+        if (data.type === "definition") {
+            // ...更新 definition DOM
+        } else if (data.type === "qa") {
+            // ...更新 qa DOM
+        } else if (data.type === "multiple_choice") {
+            // ...更新 multiple_choice DOM
+        }
 
-} else if (data.type === "multiple_choice") {
-    document.getElementById("mc-original-" + i).textContent = data.original;
-    const fullText = `<strong>知识点：</strong> ${data.original}`;
-    const snippetText = fullText.length > 126
-        ? fullText.substring(0, 125) + '...'
-        : fullText;
-    document.getElementById(`snippet-mc-${i}`).innerHTML = snippetText;
-}
-
-
-        // 3) 刷新以更新“checked”等标记
-                    location.reload();
-
-
-        // 4) 更新TTS按钮(如想无刷新局部变化，可改这里的 DOM)
+        // 刷新TTS按钮UI
         refreshTTSUI(t, i, kid);
+
         alert("已执行检查，请核实结果！");
+
+        // ★★★ 关键点：检查成功后，将按钮设置为“已检查”并保持灰色，不可再点击
+        if (checkBtn) {
+            checkBtn.innerHTML = "已检查";
+            checkBtn.disabled = true;  // 一直灰色不可点
+        }
+        if (ttsBtn) {
+            ttsBtn.disabled = false;  // TTS按钮可恢复
+        }
+
     } catch (e) {
         alert("请求异常: " + e);
-        // 异常恢复
+
+        // 出错时同样恢复，让用户可以重试
         if (checkBtn) {
             checkBtn.innerHTML = "检查";
             checkBtn.disabled = false;
@@ -1318,198 +1121,279 @@ if (data.type === "definition") {
     }
 }
 
-            // 更新TTS按钮UI（假设还没有tts_file）
-            function refreshTTSUI(t, i, kid) {
-                const containerId = `ttsWrapper-${t}-${i}`;
-                const container = document.getElementById(containerId);
-                if (!container) return;
+
+// 更新TTS按钮UI（假设还没有tts_file）
+function refreshTTSUI(t, i, kid) {
+    const containerId = `ttsWrapper-${t}-${i}`;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = `
+        <button type="button" class="btn btn-sm" style="background-color:purple;color:white;"
+            id="ttsSpeakButton-${i}" onclick="ttsSpeak('${kid}','${i}','${t}')">
+            转录
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary" disabled>收听</button>
+        <button type="button" class="btn btn-sm btn-secondary" disabled>下载</button>
+    `;
+}
+
+// 发起TTS转录
+async function ttsSpeak(kid, index, t){
+    const speakBtnId = `ttsSpeakButton-${index}`;
+    const speakBtn = document.getElementById(speakBtnId);
+    if(speakBtn) {
+        speakBtn.disabled = true;
+        speakBtn.innerHTML =
+            `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 转录中...`;
+    }
+
+    try {
+        let resp = await fetch("/tts_speak", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ kid: kid, index: index })
+        });
+        let data = await resp.json();
+
+        if(data.success){
+            alert("转录成功！文件已生成: " + data.file_path);
+            // 转录成功后，更新UI => “已转录” + “收听” + “下载”
+            const wrapperId = `ttsWrapper-${t}-${index}`;
+            const container = document.getElementById(wrapperId);
+            if(container){
                 container.innerHTML = `
-                    <button type="button" class="btn btn-sm" style="background-color:purple;color:white;"
-                            id="ttsSpeakButton-${i}" onclick="ttsSpeak('${kid}','${i}','${t}')">
-                        转录
-                    </button>
-                    <button type="button" class="btn btn-sm btn-secondary" disabled>收听</button>
-                    <button type="button" class="btn btn-sm btn-secondary" disabled>下载</button>
+                    <button type="button" class="btn btn-sm btn-secondary" disabled>已转录</button>
+                    <button type="button" class="btn btn-sm" style="background-color:#b8860b;color:white;" onclick="listenTTS('${kid}')">收听</button>
+                    <button type="button" class="btn btn-sm" style="background-color:#ff1493;color:white;" onclick="downloadTTS('${kid}')">下载</button>
                 `;
             }
+        } else {
+            if(speakBtn){
+                speakBtn.disabled = false;
+                speakBtn.innerHTML = '转录';
+            }
+            alert("转录失败：" + (data.error || "未知错误"));
+        }
+    } catch(e) {
+        if(speakBtn){
+            speakBtn.disabled = false;
+            speakBtn.innerHTML = '转录';
+        }
+        alert("请求异常:" + e);
+    }
+}
 
-            // 转录(带索引)
-            async function ttsSpeak(kid, index, t){
-                const speakBtnId = `ttsSpeakButton-${index}`;
-                const speakBtn = document.getElementById(speakBtnId);
-                if(speakBtn) {
-                    speakBtn.disabled = true;
-                    speakBtn.innerHTML = `
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        转录中...
+// 收听音频
+async function listenTTS(kid){
+    try {
+        let resp = await fetch("/tts_listen?kid=" + kid);
+        let data = await resp.json();
+        if(!data.success){
+            alert("找不到文件，请重新转录~");
+            return;
+        }
+        let audioHtml = `
+            <audio style="width:100%;" controls autoplay src="${data.file_url}"></audio>
+        `;
+        document.getElementById("listenModalBody").innerHTML = audioHtml;
+        let modal = new bootstrap.Modal(document.getElementById("listenModal"));
+        modal.show();
+    } catch(e){
+        alert("请求错误: " + e);
+    }
+}
+
+// 下载音频
+function downloadTTS(kid){
+    // 直接新标签打开即可下载
+    window.open('/tts_download?kid='+kid, '_blank');
+}
+
+function activateAll(){
+    document.querySelector('input[name="ktype"][value=""]').checked = true;
+}
+
+// 转为选择题按钮
+async function convertToMcAjax(ev, kid, i){
+    ev.preventDefault(); // 拦截表单默认提交
+    const form = ev.target;
+    const submitBtn = form.querySelector("button[type='submit']");
+
+    // 禁用按钮并显示“生成中...”+转圈
+    submitBtn.disabled = true;
+    submitBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 生成中...';
+
+    try {
+        const fd = new FormData(form);
+        const resp = await fetch("/convert_to_mc", {
+            method: "POST",
+            body: fd
+        });
+
+        // 检查返回
+        console.log("Response status: ", resp.status);
+        const data = await resp.json();
+        console.log("Response data: ", data);
+
+        if(!data.success){
+            alert("转换失败：" + (data.error || "未知错误"));
+            // 失败时恢复
+            submitBtn.disabled = false;
+            submitBtn.textContent = '转为选择题';
+            return;
+        }
+
+        // 更新DOM: 把 multiple_choices 显示到 fullContent-mc-i
+        const mcDiv = document.getElementById("fullContent-mc-" + i);
+        if(mcDiv){
+            let html = `
+                <div>
+                    <strong>知识点：</strong>
+                    <span id="mc-original-${i}">${data.original}</span>
+                </div>
+            `;
+            if(data.multiple_choices && data.multiple_choices.length > 0){
+                html += `<hr><p><strong>已生成的单选题列表：</strong></p>`;
+                data.multiple_choices.forEach((q_obj, idx)=>{
+                    html += `
+                        <div class="mb-3">
+                            <strong>题目 ${idx+1}: </strong> ${q_obj.question}
+                            <ul id="question-list-container">
+                                <li>A. ${q_obj.options.A}</li>
+                                <li>B. ${q_obj.options.B}</li>
+                                <li>C. ${q_obj.options.C}</li>
+                                <li>D. ${q_obj.options.D}</li>
+                            </ul>
+                            <div><strong>答案:</strong> ${q_obj.answer}</div>
+                            <div><strong>解析:</strong> ${q_obj.explanation}</div>
+                        </div>
                     `;
-                }
-
-                try {
-                    let resp = await fetch("/tts_speak", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                        body: new URLSearchParams({ kid: kid, index: index })
-                    });
-                    let data = await resp.json();
-
-                    if(data.success){
-                        alert("转录成功！文件已生成: " + data.file_path);
-                        // 转录成功后，更新UI => “已转录” + “收听” + “下载”
-                        const wrapperId = `ttsWrapper-${t}-${index}`;
-                        const container = document.getElementById(wrapperId);
-                        if(container){
-                            container.innerHTML = `
-                                <button type="button"
-                                        class="btn btn-sm btn-secondary"
-                                        disabled>
-                                    已转录
-                                </button>
-                                <button type="button"
-                                        class="btn btn-sm"
-                                        style="background-color:#b8860b;color:white;"
-                                        onclick="listenTTS('${kid}')">
-                                    收听
-                                </button>
-                                <button type="button"
-                                        class="btn btn-sm"
-                                        style="background-color:#ff1493;color:white;"
-                                        onclick="downloadTTS('${kid}')">
-                                    下载
-                                </button>
-                            `;
-                        }
-                    } else {
-                        if(speakBtn){
-                            speakBtn.disabled = false;
-                            speakBtn.innerHTML = '转录';
-                        }
-                        alert("转录失败：" + (data.error || "未知错误"));
-                    }
-                } catch(e) {
-                    if(speakBtn){
-                        speakBtn.disabled = false;
-                        speakBtn.innerHTML = '转录';
-                    }
-                    alert("请求异常:" + e);
-                }
-            }
-
-            // 收听
-            async function listenTTS(kid){
-                try {
-                    let resp = await fetch("/tts_listen?kid=" + kid);
-                    let data = await resp.json();
-                    if(!data.success){
-                        alert("找不到文件，请重新转录~");
-                        return;
-                    }
-                    let audioHtml = `
-                        <audio style="width:100%;" controls autoplay src="${data.file_url}"></audio>
-                    `;
-                    document.getElementById("listenModalBody").innerHTML = audioHtml;
-                    let modal = new bootstrap.Modal(document.getElementById("listenModal"));
-                    modal.show();
-                } catch(e){
-                    alert("请求错误: " + e);
-                }
-            }
-
-            // 下载
-            async function downloadTTS(kid){
-                // 直接新标签打开即可下载
-                window.open('/tts_download?kid='+kid, '_blank');
-            }
-
-            function activateAll(){
-                document.querySelector('input[name="ktype"][value=""]').checked = true;
-            }
-
-            // 转为选择题 => Ajax
-            async function convertToMcAjax(ev, kid, i){
-                ev.preventDefault(); // 拦截表单默认提交
-                const form = ev.target;
-                const submitBtn = form.querySelector("button[type='submit']");
-
-                // 禁用按钮并显示“生成中...”+转圈
-                submitBtn.disabled = true;
-                submitBtn.innerHTML =
-                    '<span class="spinner-border spinner-border-sm" role="status"></span> 生成中...';
-
-                try {
-                    const fd = new FormData(form);
-                    const resp = await fetch("/convert_to_mc", {
-                        method: "POST",
-                        body: fd
-                    });
-                    const data = await resp.json();
-
-                    if(!data.success){
-                        alert("转换失败：" + (data.error || "未知错误"));
-                        // 失败时恢复
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = '转为选择题';
-                        return;
-                    }
-
-                    // 更新DOM: 把 multiple_choices 显示到 fullContent-mc-i
-                    const mcDiv = document.getElementById("fullContent-mc-" + i);
-                    if(mcDiv){
-                        let html = `
-                            <div>
-                                <strong>知识点：</strong>
-                                <span id="mc-original-${i}">${data.original}</span>
+                    if(idx < data.multiple_choices.length - 1){
+                        html += `
+                            <div style="text-align:left;color:#b1a17057;">
+                                --------------------------------------------
                             </div>
                         `;
-                        if(data.multiple_choices && data.multiple_choices.length > 0){
-                            html += `<hr><p><strong>已生成的单选题列表：</strong></p>`;
-                            data.multiple_choices.forEach((q_obj, idx)=>{
-                                html += `
-                                    <div class="mb-3">
-                                        <strong>题目 ${idx+1}: </strong> ${q_obj.question}
-                                        <ul id="question-list-container">
-                                            <li>A. ${q_obj.options.A}</li>
-                                            <li>B. ${q_obj.options.B}</li>
-                                            <li>C. ${q_obj.options.C}</li>
-                                            <li>D. ${q_obj.options.D}</li>
-                                        </ul>
-                                        <div><strong>答案:</strong> ${q_obj.answer}</div>
-                                        <div><strong>解析:</strong> ${q_obj.explanation}</div>
-                                    </div>
-                                `;
-                                if(idx < data.multiple_choices.length - 1){
-                                    html += `
-                                        <div style="text-align:left;color:#b1a17057;">
-                                            --------------------------------------------
-                                        </div>
-                                    `;
-                                }
-                            });
-                        }
-                        if(data.last_error){
-                            html += `
-                                <div class="text-danger">
-                                    <strong>错误:</strong> ${data.last_error}
-                                </div>
-                            `;
-                        }
-                        mcDiv.innerHTML = html;
                     }
-                    alert("已成功生成选择题！");
-                    // 如果需要立即可见，可去掉 reload:
-                    location.reload();
-                } catch(e){
-                    console.error(e);
-                    alert("请求异常：" + e);
-                } finally {
-                    // 恢复按钮状态
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = '转为选择题';
-                }
+                });
             }
+            if(data.last_error){
+                html += `
+                    <div class="text-danger">
+                        <strong>错误:</strong> ${data.last_error}
+                    </div>
+                `;
+            }
+            mcDiv.innerHTML = html;
+        }
+
+        alert("已成功生成选择题！");
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = '已转换';
+    } catch(e){
+        console.error("Request failed:", e);
+        alert("请求异常：" + e);
+    } finally {
+        // 如果你希望在 catch 之外，才恢复按钮，这里可以控制
+        // 但是如果希望按钮永久禁用，就不要在 finally 中恢复
+        // submitBtn.disabled = false;
+        // submitBtn.textContent = '转为选择题';
+    }
+}
+
+
+/* ========== 第五部分：删除知识点 & 删除选择题 ========== */
+
+// 原始保存
+function saveEdit() {
+    const form = document.getElementById("editKnowledgeForm");
+    const formData = new FormData(form);
+    const saveButton = document.querySelector('.btn-primary');
+
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 保存中...';
+
+    fetch("/edit_knowledge_ajax", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // 成功后恢复按钮状态
+            saveButton.disabled = false;
+            saveButton.innerHTML = '保存';
+
+            // 关闭弹窗
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+            modal.hide();
+            location.reload(); // 添加页面刷新
+            // 提示保存成功
+            alert("保存成功！");
+        } else {
+            // 错误恢复按钮状态
+            saveButton.disabled = false;
+            saveButton.innerHTML = '保存';
+            alert("保存失败: " + (result.error || "未知错误"));
+        }
+    })
+    .catch(err => {
+        saveButton.disabled = false;
+        saveButton.innerHTML = '保存';
+        alert("请求出错: " + err);
+    });
+}
+
+//修改题目
+function openEditModal(kid) {
+    fetch(`/get_knowledge/${kid}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);  // 这里调试，确保数据是有效的
+
+            if (data.success) {
+                document.getElementById("editKid").value = data.kid;
+                document.getElementById("editCourse").value = data.course;
+                document.getElementById("editChapter").value = data.chapter;
+                document.getElementById("editSection").value = data.section;
+                document.getElementById("editStatement").value = data.content.original || ''; 
+
+                // 根据知识点类型显示相应的内容
+                if (data.type === 'definition') {
+                    document.getElementById("editTerm").value = data.content.term || '';
+                    document.getElementById("editExplanation").value = data.content.explanation || '';
+                    document.querySelector('.field-group.definition').style.display = 'block';
+                    document.querySelector('.field-group.multiple_choice').style.display = 'none';
+                    document.querySelector('.field-group.qa').style.display = 'none';
+                } else if (data.type === 'qa') {
+                    document.getElementById("editQuestion").value = data.content.question || '';
+                    document.getElementById("editAnswer").value = data.content.answer || '';
+                    document.querySelector('.field-group.qa').style.display = 'block';
+                    document.querySelector('.field-group.multiple_choice').style.display = 'none';
+                    document.querySelector('.field-group.definition').style.display = 'none';
+                } else if (data.type === 'multiple_choice') {
+                    document.getElementById("editStatement").value = data.content.original || '';  
+                    document.querySelector('.field-group.multiple_choice').style.display = 'block';
+                    document.querySelector('.field-group.qa').style.display = 'none';
+                    document.querySelector('.field-group.definition').style.display = 'none';
+                }
+
+                var modal = new bootstrap.Modal(document.getElementById('editModal'));
+                modal.show();
+            } else {
+                alert("无法加载数据！");
+            }
+        })
+        .catch(err => console.error("请求错误:", err));
+}
+
+
+
+// 删除知识点 Ajax
 async function deleteKnowledgeAjax(ev, kid) {
     ev.preventDefault();
-
     if(!confirmDelete()) {
         return false;
     }
@@ -1517,13 +1401,11 @@ async function deleteKnowledgeAjax(ev, kid) {
     try {
         const resp = await fetch("/delete_knowledge_ajax", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({kid: kid})
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ kid: kid })
         });
-
         const data = await resp.json();
+
         if(data.success) {
             // 找到对应的 li 元素并移除
             const itemElement = ev.target.closest('li');
@@ -1540,40 +1422,76 @@ async function deleteKnowledgeAjax(ev, kid) {
     return false;
 }
 
-
-// 绑定选择题删除按钮事件（在文档加载完成后）
+// 绑定删除“选择题”按钮事件
 document.addEventListener('DOMContentLoaded', function() {
+    // 页面加载时，检查是否有要展开的题目ID
+    const expandedQuestionId = sessionStorage.getItem('expandedQuestionId');
+    if (expandedQuestionId) {
+        const questionElement = document.getElementById(expandedQuestionId);
+        if (questionElement) {
+            const toggleText = questionElement.querySelector('[id^="toggleText-mc-"]');
+            if (toggleText && toggleText.textContent === "▷ 展开") {
+                toggleText.click(); // 展开题目
+            }
+        }
+        sessionStorage.removeItem('expandedQuestionId'); // 清除记录
+    }
+
     document.body.addEventListener('click', function(e) {
         if (e.target.classList.contains('delete-btn')) {
             const questionId = e.target.dataset.id;
+            const questionElement = e.target.closest('.mb-3');  // 获取要删除的问题元素
+            const toggleText = questionElement.querySelector('[id^="toggleText-mc-"]'); // 获取展开/收起按钮
+            const isExpanded = toggleText && toggleText.textContent === "▷ 收起"; // 判断是否已展开
+
             if (confirm('确定要删除这个选择题吗？')) {
                 fetch('/delete_question', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: questionId }),
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-    // 删除当前题目
-    const questionElement = e.target.closest('.mb-3');
-    questionElement.remove();
+                        // 删除当前题目
+                        questionElement.remove();
 
-    // 重新编号所有题目
-    const container = document.getElementById(`fullContent-mc-${i}`); // 需要获取正确的容器
-    container.querySelectorAll('.mb-3').forEach((element, index) => {
-        const questionHeader = element.querySelector('strong');
-        if (questionHeader) {
-            questionHeader.textContent = `题目 ${index + 1}: `;
-        }
-    }); 
+                        // 如果当前问题是展开状态，记录该问题ID
+                        if (isExpanded) {
+                            sessionStorage.setItem('expandedQuestionId', questionId);
+                        }
 
-    location.reload();
+                        // 重新编号剩余问题并更新展开/收起按钮ID
+                        const remainingQuestions = document.querySelectorAll('.list-group-item');
+                        remainingQuestions.forEach((item, index) => {
+                            const questionIndex = item.querySelector('strong');
+                            if (questionIndex) {
+                                questionIndex.textContent = index + 1 + "."; // 更新编号
+                            }
 
-} else {
-        alert('删除失败: ' + (data.error || '未知错误'));
+                            // 更新展开/收起按钮的 id 和事件
+                            const toggleText = item.querySelector('[id^="toggleText-mc-"]');
+                            if (toggleText) {
+                                toggleText.id = `toggleText-mc-${index + 1}`; // 更新 ID
+                                toggleText.setAttribute('onclick', `toggleContent('mc', ${index + 1})`); // 更新事件
+                            }
+
+                            // 更新其他元素的 id（如 snippet、fullContent）
+                            const snippet = item.querySelector('[id^="snippet-mc-"]');
+                            if (snippet) {
+                                snippet.id = `snippet-mc-${index + 1}`;
+                            }
+
+                            const fullContent = item.querySelector('[id^="fullContent-mc-"]');
+                            if (fullContent) {
+                                fullContent.id = `fullContent-mc-${index + 1}`;
+                            }
+                        });
+
+                        // 刷新页面
+                        location.reload();
+                    } else {
+                        alert('删除失败: ' + (data.error || '未知错误'));
                     }
                 })
                 .catch(error => {
@@ -1583,7 +1501,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-        </script>
+
+
+</script>
+
 
     </div>
 </div>
@@ -1860,6 +1781,8 @@ function toggleFields() {
 }
 
 // ============== 新增：使用AJAX保存 ==============
+
+// 新增保存
 const addForm = document.getElementById("addKnowledgeForm");
 addForm.addEventListener("submit", async function(e){
     e.preventDefault();
@@ -1894,6 +1817,7 @@ addForm.addEventListener("submit", async function(e){
         alert("请求出错: " + err);
     }
 });
+
 </script>
 </div>
 """
@@ -1992,9 +1916,6 @@ EDIT_HTML = (
         <textarea class="form-control" name="answer" rows="12">{{ item['content']['answer'] }}</textarea>
     </div>
 {% endif %}
-
-
-
     <div class="col-12">
         <button type="submit" class="btn btn-primary">保存修改</button>
     </div>
@@ -2114,16 +2035,18 @@ def get_knowledge(kid):
 
 @app.route("/edit_knowledge_ajax", methods=["POST"])
 def edit_knowledge_ajax():
-    data = load_data()
+    data = load_data()  # 加载数据
     kid = request.form.get("kid")
     if not kid or kid not in data["index"]:
         return jsonify({"success": False, "error": "无效或不存在的知识点ID"})
 
+    # 获取表单中更新的字段
     item = data["index"][kid]
     item["course"] = request.form.get("course")
     item["chapter"] = request.form.get("chapter")
     item["section"] = request.form.get("section")
 
+    # 根据不同的知识点类型，更新相应的内容
     if item["type"] == "definition":
         item["content"]["term"] = request.form.get("term")
         item["content"]["explanation"] = request.form.get("explanation")
@@ -2132,12 +2055,15 @@ def edit_knowledge_ajax():
         item["content"]["answer"] = request.form.get("answer")
     elif item["type"] == "multiple_choice":
         item["content"]["original"] = request.form.get("statement")
-        item["content"]["multiple_choices"] = []
+        item["content"]["multiple_choices"] = []  # 清空选择题选项
         item["content"]["checked"] = False
         item["content"]["tts_file"] = None
 
+    # 保存更新后的数据
     data["index"][kid] = item
+    sync_knowledge_in_course(data, kid)
     save_data(data)
+    print(f"保存成功: {item}")  # 打印保存的数据，确认数据是否成功更新
     return jsonify({"success": True})
 
 
@@ -3123,6 +3049,8 @@ def check_text_ajax():
 
     # 检查完成后，顺便把 tts_file 置空，因为它和已检查内容对应
     item["content"]["tts_file"] = None
+    # 设置 checked 为 True，表示已经检查过
+    item["content"]["checked"] = True
     data["index"][kid] = item
 
     # 同步到目录树
