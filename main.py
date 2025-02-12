@@ -6,18 +6,64 @@ import copy
 import uuid
 import gzip
 import asyncio
-import sqlite3
 import websockets
 import subprocess
 import threading
+import sqlite3
+
 from flask import Flask, request, redirect, url_for, render_template_string, jsonify, Response, send_file
 from openai import OpenAI
 
-# 创建 SQLite 数据库和表
-def init_db():
+# 配置部分
+MC_BASE_URL_1 = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+MC_API_KEY_1 = "sk-0cf4070025924d03a4b505e892f3bf9f"
+MC_MODEL_NAME_1 = "deepseek-r1"
+
+MC_BASE_URL_2 = "https://api.siliconflow.cn/v1"
+MC_API_KEY_2 = "sk-qumbdboezpbyzdjqskflttyrkjbjvuqaihqmkrcgniiqusag"
+MC_MODEL_NAME_2 = "Pro/deepseek-ai/DeepSeek-R1"
+
+CHECK_BASE_URL = "https://api.siliconflow.cn/v1"
+CHECK_API_KEY = "sk-qumbdboezpbyzdjqskflttyrkjbjvuqaihqmkrcgniiqusag"
+CHECK_MODEL_NAME = "Qwen/Qwen2.5-72B-Instruct-128K"
+
+client_mc1 = OpenAI(api_key=MC_API_KEY_1, base_url=MC_BASE_URL_1)
+client_mc2 = OpenAI(api_key=MC_API_KEY_2, base_url=MC_BASE_URL_2)
+client_check = OpenAI(api_key=CHECK_API_KEY, base_url=CHECK_BASE_URL)
+
+# TTS 配置
+appid = "6959536185"
+token = "pCff9XSFyC2PZxQvq86zORVQ8jmnzGpA"
+cluster = "volcano_tts"
+voice_type = "zh_female_linjianvhai_moon_bigtts"
+host = "openspeech.bytedance.com"
+api_url = f"wss://{host}/api/v1/tts/ws_binary"
+
+default_header = bytearray(b"\x11\x10\x11\x00")
+
+request_json = {
+    "app" : {"appid" : appid, "token" : "access_token", "cluster" : cluster},
+    "user" : {"uid" : "2103133273"},
+    "audio" : {
+        "voice_type" : voice_type,
+        "encoding" : "mp3",
+        "speed_ratio" : 1.0,
+        "volume_ratio" : 1.0,
+        "pitch_ratio" : 1.0,
+    },
+    "request" : {
+        "reqid" : "",  # 每次动态生成
+        "text" : "",  # 待合成文本
+        "text_type" : "plain",
+        "operation" : "submit",
+    },
+}
+
+
+def init_db() :
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
-    
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS courses (
         name TEXT PRIMARY KEY
@@ -58,56 +104,218 @@ def init_db():
     conn.commit()
     conn.close()
 
-# 更新 Flask 应用以使用 SQLite 数据库
 
-app = Flask(__name__)
-
-# 初始化数据库
-init_db()
-
-def get_db_connection():
+def get_db_connection() :
     conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-def load_data():
+
+def parse_response(res, file) :
+    message_type = res[1] >> 4
+    message_type_specific_flags = res[1] & 0x0F
+    header_size = res[0] & 0x0F
+    payload = res[header_size * 4 :]
+
+    if message_type == 0xB :  # audio-only server response
+        if message_type_specific_flags == 0 :  # no sequence number as ACK
+            return False
+        else :
+            sequence_number = int.from_bytes(payload[:4], "big", signed=True)
+            payload_size = int.from_bytes(payload[4 :8], "big", signed=False)
+            payload = payload[8 :]
+            file.write(payload)
+            if sequence_number < 0 :
+                return True
+            else :
+                return False
+    elif message_type == 0xF :
+        return True
+    elif message_type == 0xC :
+        return False
+    else :
+        return True
+
+
+async def run_tts(text, out_path) :
+    submit_req = copy.deepcopy(request_json)
+    submit_req["request"]["text"] = text
+    submit_req["request"]["reqid"] = str(uuid.uuid4())
+    submit_req["request"]["operation"] = "submit"
+
+    payload_bytes = json.dumps(submit_req, ensure_ascii=False).encode("utf-8")
+    payload_bytes = gzip.compress(payload_bytes)
+
+    full_client_request = bytearray(default_header)
+    full_client_request.extend((len(payload_bytes)).to_bytes(4, "big"))
+    full_client_request.extend(payload_bytes)
+
+    with open(out_path, "wb") as fout :
+        header = {"Authorization" : f"Bearer; {token}"}
+        async with websockets.connect(
+                api_url, extra_headers=header, ping_interval=None
+        ) as ws :
+            await ws.send(full_client_request)
+            while True :
+                res = await ws.recv()
+                done = parse_response(res, fout)
+                if done :
+                    break
+    return True
+
+
+def call_api_with_retry(client, model_name, messages, max_retries=5) :
+    last_exception = None
+    for attempt in range(max_retries) :
+        try :
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=0.5,
+                timeout=120,
+                stream=False,
+            )
+
+            if not response or not hasattr(response, "choices") or not response.choices :
+                time.sleep(3)
+                continue
+
+            content_str = response.choices[0].message.content.strip()
+            cleaned_content = re.sub(
+                r"^```json\s*|\s*```$",
+                "",
+                content_str,
+                flags=re.IGNORECASE | re.MULTILINE,
+            ).strip()
+
+            try :
+                parsed_data = json.loads(cleaned_content)
+                if isinstance(parsed_data, list) :
+                    for item in parsed_data :
+                        if not all(
+                                k in item
+                                for k in ["question", "options", "answer", "explanation"]
+                        ) :
+                            raise ValueError("选择题数据结构不完整")
+                elif isinstance(parsed_data, dict) :
+                    if not all(
+                            k in parsed_data
+                            for k in ["question", "options", "answer", "explanation"]
+                    ) :
+                        raise ValueError("选择题数据结构不完整")
+                else :
+                    raise ValueError("无效的数据类型")
+
+                return parsed_data
+
+            except json.JSONDecodeError as e :
+                print(
+                    f"[call_api_with_retry] 第 {attempt + 1} 次尝试: JSON 解析失败: {e}"
+                )
+                print("原始内容:", content_str)
+                time.sleep(3)
+                continue
+
+            except ValueError as e :
+                print(
+                    f"[call_api_with_retry] 第 {attempt + 1} 次尝试: 数据验证失败: {e}"
+                )
+                time.sleep(3)
+                continue
+
+        except Exception as e :
+            print(f"[call_api_with_retry] 第 {attempt + 1} 次尝试失败: {e}")
+            last_exception = e
+            time.sleep(3)
+
+    print(f"[call_api_with_retry] 所有 {max_retries} 次尝试均失败")
+    return None
+
+
+def call_mc_api_two_stage(messages) :
+    result = call_api_with_retry(client_mc1, MC_MODEL_NAME_1, messages, max_retries=5)
+    if result is not None :
+        return result
+    result = call_api_with_retry(client_mc2, MC_MODEL_NAME_2, messages, max_retries=3)
+    return result
+
+
+def call_check_api_with_retry(client, messages, max_retries=10) :
+    for attempt in range(max_retries) :
+        try :
+            response = client.chat.completions.create(
+                model=CHECK_MODEL_NAME,
+                messages=messages,
+                temperature=0.7,
+                timeout=120,
+                stream=False,
+            )
+            content_str = response.choices[0].message.content.strip()
+            print("纠错API返回内容:", content_str)
+
+            json_match = re.search(
+                r"```(?:json)?\s*({.*?})\s*```", content_str, re.DOTALL
+            )
+            if json_match :
+                content_str = json_match.group(1).strip()
+            else :
+                content_str = content_str.strip("``` ").strip()
+
+            parsed_data = json.loads(content_str)
+            if "corrected" in parsed_data :
+                return {"original" : parsed_data["corrected"]}
+            else :
+                return parsed_data
+
+        except Exception as e :
+            print(f"[call_check_api_with_retry] 第 {attempt + 1} 次失败, 错误: {e}")
+            time.sleep(2 if attempt == 0 else 5)
+    print("[call_check_api_with_retry] 多次重试后依然失败")
+    return None
+
+
+app = Flask(__name__)
+
+
+def load_data() :
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('SELECT * FROM courses')
-    courses = {course['name']: {'chapters': []} for course in cursor.fetchall()}
+    courses = {course['name'] : {'chapters' : []} for course in cursor.fetchall()}
 
     cursor.execute('SELECT * FROM chapters')
     chapters = cursor.fetchall()
-    for chapter in chapters:
-        courses[chapter['course_name']]['chapters'].append({'name': chapter['name'], 'sections': []})
+    for chapter in chapters :
+        courses[chapter['course_name']]['chapters'].append({'name' : chapter['name'], 'sections' : []})
 
     cursor.execute('SELECT * FROM sections')
     sections = cursor.fetchall()
-    for section in sections:
-        for chapter in courses[section['course_name']]['chapters']:
-            if chapter['name'] == section['chapter_name']:
-                chapter['sections'].append({'name': section['name'], 'knowledge': []})
+    for section in sections :
+        for chapter in courses[section['course_name']]['chapters'] :
+            if chapter['name'] == section['chapter_name'] :
+                chapter['sections'].append({'name' : section['name'], 'knowledge' : []})
 
     cursor.execute('SELECT * FROM knowledge')
     knowledge = cursor.fetchall()
-    for item in knowledge:
-        for chapter in courses[item['course_name']]['chapters']:
-            if chapter['name'] == item['chapter_name']:
-                for section in chapter['sections']:
-                    if section['name'] == item['section_name']:
+    for item in knowledge :
+        for chapter in courses[item['course_name']]['chapters'] :
+            if chapter['name'] == item['chapter_name'] :
+                for section in chapter['sections'] :
+                    if section['name'] == item['section_name'] :
                         section['knowledge'].append({
-                            'type': item['type'],
-                            'id': item['id'],
-                            'content': json.loads(item['content']),
-                            'checked': bool(item['checked']),
-                            'tts_file': item['tts_file']
+                            'type' : item['type'],
+                            'id' : item['id'],
+                            'content' : json.loads(item['content']),
+                            'checked' : bool(item['checked']),
+                            'tts_file' : item['tts_file']
                         })
 
     conn.close()
-    return {'courses': courses, 'index': {item['id']: dict(item) for item in knowledge}}
+    return {'courses' : courses, 'index' : {item['id'] : dict(item) for item in knowledge}}
 
-def save_data(data):
+
+def save_data(data) :
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -116,25 +324,23 @@ def save_data(data):
     cursor.execute('DELETE FROM sections')
     cursor.execute('DELETE FROM knowledge')
 
-    for course_name, course_data in data['courses'].items():
+    for course_name, course_data in data['courses'].items() :
         cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
-        for chapter in course_data['chapters']:
+        for chapter in course_data['chapters'] :
             cursor.execute('INSERT INTO chapters (name, course_name) VALUES (?, ?)', (chapter['name'], course_name))
-            for section in chapter['sections']:
-                cursor.execute('INSERT INTO sections (name, chapter_id) VALUES (?, (SELECT id FROM chapters WHERE name = ? AND course_name = ?))', (section['name'], chapter['name'], course_name))
-                for knowledge in section['knowledge']:
+            for section in chapter['sections'] :
+                cursor.execute(
+                    'INSERT INTO sections (name, chapter_id) VALUES (?, (SELECT id FROM chapters WHERE name = ? AND course_name = ?))',
+                    (section['name'], chapter['name'], course_name))
+                for knowledge in section['knowledge'] :
                     cursor.execute('''
                         INSERT INTO knowledge (id, course_name, chapter_name, section_name, type, content, checked, tts_file)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (knowledge['id'], course_name, chapter['name'], section['name'], knowledge['type'], json.dumps(knowledge['content']), int(knowledge['checked']), knowledge['tts_file']))
+                    ''', (knowledge['id'], course_name, chapter['name'], section['name'], knowledge['type'],
+                          json.dumps(knowledge['content']), int(knowledge['checked']), knowledge['tts_file']))
 
     conn.commit()
     conn.close()
-
-# 读取和保存数据示例
-data = load_data()
-save_data(data)
-
 
 
 # 读取和保存数据示例
@@ -3197,53 +3403,7 @@ def mp3_file():
         return "File not found", 404
     return send_file(abs_path, mimetype="audio/mpeg")
 
-
-if __name__ == "__main__":
-    # 如果JSON不存在或为空，初始化一个示例结构
-    if not os.path.exists(DATA_FILE) or os.path.getsize(DATA_FILE) == 0:
-        sample_data = {
-            "courses": {
-                "学科": {
-                    "chapters": [
-                        {
-                            "name": "章",
-                            "sections": [
-                                {
-                                    "name": "节",
-                                    "knowledge": [
-                                        {
-                                            "type": "multiple_choice",
-                                            "id": "示例ID",
-                                            "content": {
-                                                "original": "内容",
-                                                "multiple_choices": [],
-                                                "checked": False,
-                                                "tts_file": None,
-                                            },
-                                        }
-                                    ],
-                                }
-                            ],
-                        }
-                    ]
-                }
-            },
-            "index": {
-                "示例ID": {
-                    "course": "学科示例",
-                    "chapter": "章示例",
-                    "section": "节示例",
-                    "type": "multiple_choice",
-                    "content": {
-                        "original": "内容示例",
-                        "multiple_choices": [],
-                        "checked": False,
-                        "tts_file": None,
-                    },
-                }
-            },
-        }
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(sample_data, f, ensure_ascii=False, indent=2)
-
+if __name__ == "__main__" :
+    # 初始化数据库
+    init_db()
     app.run(host="0.0.0.0", port=6622, debug=False)
