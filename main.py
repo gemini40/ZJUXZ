@@ -59,56 +59,148 @@ request_json = {
     },
 }
 
-
-def init_db() :
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS courses (
-        name TEXT PRIMARY KEY
-    )
-    ''')
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS chapters (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        course_name TEXT,
-        FOREIGN KEY (course_name) REFERENCES courses (name)
-    )
-    ''')
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS sections (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        chapter_id INTEGER,
-        FOREIGN KEY (chapter_id) REFERENCES chapters (id)
-    )
-    ''')
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS knowledge (
-        id TEXT PRIMARY KEY,
-        course_name TEXT,
-        chapter_name TEXT,
-        section_name TEXT,
-        type TEXT,
-        content TEXT,
-        checked INTEGER,
-        tts_file TEXT
-    )
-    ''')
-
-    conn.commit()
-    conn.close()
+DATABASE = 'database.db'  # 数据库文件路径
 
 
-def get_db_connection() :
-    conn = sqlite3.connect('database.db')
+# 2. 数据库相关的基础函数
+def init_db():
+    """初始化数据库和创建表结构"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+
+        # 创建表
+        cursor.executescript('''
+            CREATE TABLE IF NOT EXISTS courses (
+                name TEXT PRIMARY KEY
+            );
+
+            CREATE TABLE IF NOT EXISTS chapters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                course_name TEXT,
+                FOREIGN KEY (course_name) REFERENCES courses (name)
+            );
+
+            CREATE TABLE IF NOT EXISTS sections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                chapter_id INTEGER,
+                FOREIGN KEY (chapter_id) REFERENCES chapters (id)
+            );
+
+            CREATE TABLE IF NOT EXISTS knowledge (
+                id TEXT PRIMARY KEY,
+                type TEXT,
+                content TEXT,
+                options TEXT,
+                answer TEXT,
+                explanation TEXT,
+                checked INTEGER DEFAULT 0,
+                tts_file TEXT,
+                section_id INTEGER,
+                FOREIGN KEY (section_id) REFERENCES sections (id)
+            );
+        ''')
+
+        # 验证表是否创建成功
+        tables = ['courses', 'chapters', 'sections', 'knowledge']
+        for table in tables:
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+            if cursor.fetchone() is None:
+                raise Exception(f"表 {table} 创建失败")
+
+        conn.commit()
+        print("数据库表结构创建成功！")
+        return True
+
+    except sqlite3.Error as e:
+        print(f"SQLite 错误: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    except Exception as e:
+        print(f"初始化数据库时出错: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
+# 3. 数据操作函数
+def add_course(course_name):
+    """添加新课程"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        print(f"课程 '{course_name}' 已存在")
+        return False
+    finally:
+        conn.close()
+
+def add_chapter(chapter_name, course_name):
+    """添加新章节"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'INSERT INTO chapters (name, course_name) VALUES (?, ?)',
+            (chapter_name, course_name)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+def add_section(section_name, chapter_id):
+    """添加新小节"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'INSERT INTO sections (name, chapter_id) VALUES (?, ?)',
+            (section_name, chapter_id)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+def add_knowledge(knowledge_data, section_id):
+    """添加新知识点"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO knowledge 
+            (id, type, content, options, answer, explanation, checked, tts_file, section_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            knowledge_data['id'],
+            knowledge_data['type'],
+            knowledge_data['content'],
+            knowledge_data.get('options', ''),
+            knowledge_data.get('answer', ''),
+            knowledge_data.get('explanation', ''),
+            1 if knowledge_data.get('checked', False) else 0,
+            knowledge_data.get('tts_file'),
+            section_id
+        ))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
 
 
 def parse_response(res, file) :
@@ -280,68 +372,131 @@ app = Flask(__name__)
 def load_data() :
     conn = get_db_connection()
     cursor = conn.cursor()
+    try :
+        # 加载课程
+        cursor.execute('SELECT * FROM courses')
+        courses = {course['name'] : {'chapters' : []} for course in cursor.fetchall()}
 
-    cursor.execute('SELECT * FROM courses')
-    courses = {course['name'] : {'chapters' : []} for course in cursor.fetchall()}
+        # 加载章节
+        cursor.execute('''
+            SELECT ch.*, c.name as course_name 
+            FROM chapters ch
+            JOIN courses c ON ch.course_name = c.name
+        ''')
+        chapters = cursor.fetchall()
+        for chapter in chapters :
+            if chapter['course_name'] in courses :
+                courses[chapter['course_name']]['chapters'].append({
+                    'name' : chapter['name'],
+                    'sections' : []
+                })
 
-    cursor.execute('SELECT * FROM chapters')
-    chapters = cursor.fetchall()
-    for chapter in chapters :
-        courses[chapter['course_name']]['chapters'].append({'name' : chapter['name'], 'sections' : []})
-
-    cursor.execute('SELECT * FROM sections')
-    sections = cursor.fetchall()
-    for section in sections :
-        for chapter in courses[section['course_name']]['chapters'] :
-            if chapter['name'] == section['chapter_name'] :
-                chapter['sections'].append({'name' : section['name'], 'knowledge' : []})
-
-    cursor.execute('SELECT * FROM knowledge')
-    knowledge = cursor.fetchall()
-    for item in knowledge :
-        for chapter in courses[item['course_name']]['chapters'] :
-            if chapter['name'] == item['chapter_name'] :
-                for section in chapter['sections'] :
-                    if section['name'] == item['section_name'] :
-                        section['knowledge'].append({
-                            'type' : item['type'],
-                            'id' : item['id'],
-                            'content' : json.loads(item['content']),
-                            'checked' : bool(item['checked']),
-                            'tts_file' : item['tts_file']
+        # 加载小节
+        cursor.execute('''
+            SELECT s.*, ch.course_name, ch.name as chapter_name
+            FROM sections s
+            JOIN chapters ch ON s.chapter_id = ch.id
+        ''')
+        sections = cursor.fetchall()
+        for section in sections :
+            if section['course_name'] in courses :
+                for chapter in courses[section['course_name']]['chapters'] :
+                    if chapter['name'] == section['chapter_name'] :
+                        chapter['sections'].append({
+                            'name' : section['name'],
+                            'knowledge' : []
                         })
 
-    conn.close()
-    return {'courses' : courses, 'index' : {item['id'] : dict(item) for item in knowledge}}
+        # 加载知识点
+        cursor.execute('''
+            SELECT k.*, s.name as section_name, ch.name as chapter_name, ch.course_name
+            FROM knowledge k
+            JOIN sections s ON k.section_id = s.id
+            JOIN chapters ch ON s.chapter_id = ch.id
+        ''')
+        knowledge = cursor.fetchall()
+        knowledge_index = {}
+
+        for item in knowledge :
+            knowledge_data = dict(item)
+            knowledge_index[item['id']] = knowledge_data
+
+            if item['course_name'] in courses :
+                for chapter in courses[item['course_name']]['chapters'] :
+                    if chapter['name'] == item['chapter_name'] :
+                        for section in chapter['sections'] :
+                            if section['name'] == item['section_name'] :
+                                section['knowledge'].append({
+                                    'id' : item['id'],
+                                    'type' : item['type'],
+                                    'content' : item['content'],
+                                    'options' : item['options'],
+                                    'answer' : item['answer'],
+                                    'explanation' : item['explanation'],
+                                    'checked' : bool(item['checked']),
+                                    'tts_file' : item['tts_file']
+                                })
+
+        return {'courses' : courses, 'index' : knowledge_index}
+    finally :
+        conn.close()
 
 
 def save_data(data) :
     conn = get_db_connection()
     cursor = conn.cursor()
+    try :
+        cursor.execute('BEGIN TRANSACTION')
 
-    cursor.execute('DELETE FROM courses')
-    cursor.execute('DELETE FROM chapters')
-    cursor.execute('DELETE FROM sections')
-    cursor.execute('DELETE FROM knowledge')
+        # 清空所有表
+        cursor.execute('DELETE FROM knowledge')
+        cursor.execute('DELETE FROM sections')
+        cursor.execute('DELETE FROM chapters')
+        cursor.execute('DELETE FROM courses')
 
-    for course_name, course_data in data['courses'].items() :
-        cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
-        for chapter in course_data['chapters'] :
-            cursor.execute('INSERT INTO chapters (name, course_name) VALUES (?, ?)', (chapter['name'], course_name))
-            for section in chapter['sections'] :
+        # 保存数据
+        for course_name, course_data in data['courses'].items() :
+            cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
+
+            for chapter in course_data['chapters'] :
                 cursor.execute(
-                    'INSERT INTO sections (name, chapter_id) VALUES (?, (SELECT id FROM chapters WHERE name = ? AND course_name = ?))',
-                    (section['name'], chapter['name'], course_name))
-                for knowledge in section['knowledge'] :
-                    cursor.execute('''
-                        INSERT INTO knowledge (id, course_name, chapter_name, section_name, type, content, checked, tts_file)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (knowledge['id'], course_name, chapter['name'], section['name'], knowledge['type'],
-                          json.dumps(knowledge['content']), int(knowledge['checked']), knowledge['tts_file']))
+                    'INSERT INTO chapters (name, course_name) VALUES (?, ?)',
+                    (chapter['name'], course_name)
+                )
+                chapter_id = cursor.lastrowid
 
-    conn.commit()
-    conn.close()
+                for section in chapter['sections'] :
+                    cursor.execute(
+                        'INSERT INTO sections (name, chapter_id) VALUES (?, ?)',
+                        (section['name'], chapter_id)
+                    )
+                    section_id = cursor.lastrowid
 
+                    for knowledge in section['knowledge'] :
+                        cursor.execute('''
+                            INSERT INTO knowledge 
+                            (id, type, content, options, answer, explanation, checked, tts_file, section_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            knowledge['id'],
+                            knowledge['type'],
+                            knowledge['content'],
+                            knowledge.get('options', ''),
+                            knowledge.get('answer', ''),
+                            knowledge.get('explanation', ''),
+                            1 if knowledge.get('checked', False) else 0,
+                            knowledge.get('tts_file'),
+                            section_id
+                        ))
+
+        conn.commit()
+        print("数据保存成功!")
+    except Exception as e :
+        conn.rollback()
+        print(f"保存数据时出错: {e}")
+        raise
+    finally :
+        conn.close()
 
 # 读取和保存数据示例
 data = load_data()
@@ -2141,68 +2296,147 @@ def edit_knowledge_ajax():
 data_lock = threading.Lock()  # 新增线程锁
 
 
-def load_data():
+def load_data() :
     conn = get_db_connection()
     cursor = conn.cursor()
+    try :
+        # 1. 加载所有课程
+        cursor.execute('SELECT * FROM courses')
+        courses = {course['name'] : {'chapters' : []} for course in cursor.fetchall()}
 
-    cursor.execute('SELECT * FROM courses')
-    courses = {course['name']: {'chapters': []} for course in cursor.fetchall()}
+        # 2. 加载章节及其关联的课程信息
+        cursor.execute('SELECT * FROM chapters')
+        chapters = cursor.fetchall()
+        for chapter in chapters :
+            if chapter['course_name'] in courses :  # 确保课程存在
+                courses[chapter['course_name']]['chapters'].append({
+                    'name' : chapter['name'],
+                    'sections' : []
+                })
 
-    cursor.execute('SELECT * FROM chapters')
-    chapters = cursor.fetchall()
-    for chapter in chapters:
-        courses[chapter['course_name']]['chapters'].append({'name': chapter['name'], 'sections': []})
+        # 3. 加载小节信息，使用 JOIN 获取必要的关联信息
+        cursor.execute('''
+            SELECT s.*, ch.course_name, ch.name as chapter_name
+            FROM sections s
+            JOIN chapters ch ON s.chapter_id = ch.id
+        ''')
+        sections = cursor.fetchall()
+        for section in sections :
+            course_name = section['course_name']
+            chapter_name = section['chapter_name']
 
-    cursor.execute('SELECT * FROM sections')
-    sections = cursor.fetchall()
-    for section in sections:
-        for chapter in courses[section['course_name']]['chapters']:
-            if chapter['name'] == section['chapter_name']:
-                chapter['sections'].append({'name': section['name'], 'knowledge': []})
-
-    cursor.execute('SELECT * FROM knowledge')
-    knowledge = cursor.fetchall()
-    for item in knowledge:
-        for chapter in courses[item['course_name']]['chapters']:
-            if chapter['name'] == item['chapter_name']:
-                for section in chapter['sections']:
-                    if section['name'] == item['section_name']:
-                        section['knowledge'].append({
-                            'type': item['type'],
-                            'id': item['id'],
-                            'content': json.loads(item['content']),
-                            'checked': bool(item['checked']),
-                            'tts_file': item['tts_file']
+            if course_name in courses :
+                for chapter in courses[course_name]['chapters'] :
+                    if chapter['name'] == chapter_name :
+                        chapter['sections'].append({
+                            'name' : section['name'],
+                            'knowledge' : []
                         })
 
-    conn.close()
-    return {'courses': courses, 'index': {item['id']: dict(item) for item in knowledge}}
+        # 4. 加载知识点信息，使用 JOIN 获取所有必要的关联信息
+        cursor.execute('''
+            SELECT k.*, s.name as section_name, ch.name as chapter_name, ch.course_name
+            FROM knowledge k
+            JOIN sections s ON k.section_id = s.id
+            JOIN chapters ch ON s.chapter_id = ch.id
+        ''')
+        knowledge = cursor.fetchall()
+        knowledge_index = {}
+
+        for item in knowledge :
+            course_name = item['course_name']
+            chapter_name = item['chapter_name']
+            section_name = item['section_name']
+
+            knowledge_data = {
+                'type' : item['type'],
+                'id' : item['id'],
+                'content' : item['content'],
+                'checked' : bool(item['checked']),
+                'tts_file' : item['tts_file']
+            }
+
+            # 添加到索引
+            knowledge_index[item['id']] = knowledge_data
+
+            # 添加到课程结构中
+            if course_name in courses :
+                for chapter in courses[course_name]['chapters'] :
+                    if chapter['name'] == chapter_name :
+                        for section in chapter['sections'] :
+                            if section['name'] == section_name :
+                                section['knowledge'].append(knowledge_data)
+
+        return {'courses' : courses, 'index' : knowledge_index}
+
+    except Exception as e :
+        print(f"加载数据时出错: {e}")
+        raise
+    finally :
+        conn.close()
 
 
-def save_data(data):
+def save_data(data) :
     conn = get_db_connection()
     cursor = conn.cursor()
+    try :
+        # 开始事务
+        cursor.execute('BEGIN TRANSACTION')
 
-    cursor.execute('DELETE FROM courses')
-    cursor.execute('DELETE FROM chapters')
-    cursor.execute('DELETE FROM sections')
-    cursor.execute('DELETE FROM knowledge')
+        # 清空所有表
+        cursor.execute('DELETE FROM knowledge')
+        cursor.execute('DELETE FROM sections')
+        cursor.execute('DELETE FROM chapters')
+        cursor.execute('DELETE FROM courses')
 
-    for course_name, course_data in data['courses'].items():
-        cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
-        for chapter in course_data['chapters']:
-            cursor.execute('INSERT INTO chapters (name, course_name) VALUES (?, ?)', (chapter['name'], course_name))
-            for section in chapter['sections']:
-                cursor.execute('INSERT INTO sections (name, chapter_id) VALUES (?, (SELECT id FROM chapters WHERE name = ? AND course_name = ?))', (section['name'], chapter['name'], course_name))
-                for knowledge in section['knowledge']:
-                    cursor.execute('''
-                        INSERT INTO knowledge (id, course_name, chapter_name, section_name, type, content, checked, tts_file)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (knowledge['id'], course_name, chapter['name'], section['name'], knowledge['type'], json.dumps(knowledge['content']), int(knowledge['checked']), knowledge['tts_file']))
+        # 保存课程数据
+        for course_name, course_data in data['courses'].items() :
+            # 插入课程
+            cursor.execute('INSERT INTO courses (name) VALUES (?)', (course_name,))
 
-    conn.commit()
-    conn.close()
+            # 插入章节
+            for chapter in course_data['chapters'] :
+                cursor.execute(
+                    'INSERT INTO chapters (name, course_name) VALUES (?, ?)',
+                    (chapter['name'], course_name)
+                )
+                chapter_id = cursor.lastrowid
 
+                # 插入小节
+                for section in chapter['sections'] :
+                    cursor.execute(
+                        'INSERT INTO sections (name, chapter_id) VALUES (?, ?)',
+                        (section['name'], chapter_id)
+                    )
+                    section_id = cursor.lastrowid
+
+                    # 插入知识点
+                    for knowledge in section['knowledge'] :
+                        cursor.execute('''
+                            INSERT INTO knowledge 
+                            (id, type, content, checked, tts_file, section_id)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (
+                            knowledge['id'],
+                            knowledge['type'],
+                            knowledge['content'],
+                            1 if knowledge.get('checked', False) else 0,
+                            knowledge.get('tts_file'),
+                            section_id
+                        ))
+
+        # 提交事务
+        conn.commit()
+        print("数据保存成功!")
+
+    except Exception as e :
+        # 如果出错，回滚事务
+        conn.rollback()
+        print(f"保存数据时出错: {e}")
+        raise
+
+    finally :
+        conn.close()
 
 @app.route("/")
 def index():
@@ -3403,7 +3637,73 @@ def mp3_file():
         return "File not found", 404
     return send_file(abs_path, mimetype="audio/mpeg")
 
-if __name__ == "__main__" :
+if __name__ == "__main__":
     # 初始化数据库
-    init_db()
-    app.run(host="0.0.0.0", port=6622, debug=False)
+    try :
+        # 1. 检查数据库文件是否存在
+        db_exists = os.path.exists(DATABASE)
+        if not db_exists :
+            print(f"数据库文件不存在，创建新数据库: {DATABASE}")
+        else :
+            print(f"使用现有数据库: {DATABASE}")
+
+        # 2. 创建数据库连接并初始化表
+        print("开始初始化数据库...")
+        init_db()
+        print("数据库初始化完成")
+
+        # 3. 验证表是否创建成功
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 检查表是否存在
+        cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='courses'
+            """)
+        table_exists = cursor.fetchone() is not None
+
+        if not table_exists :
+            print("错误：courses 表未能成功创建")
+            raise Exception("数据库表创建失败")
+
+        # 4. 检查是否需要添加示例数据
+        cursor.execute("SELECT COUNT(*) FROM courses")
+        count = cursor.fetchone()[0]
+        conn.close()
+
+        if count == 0 :
+            print("数据库为空，添加示例数据...")
+            # 添加示例数据
+            add_course("示例课程")
+            chapter_id = add_chapter("第一章", "示例课程")
+            section_id = add_section("第一节", chapter_id)
+
+            test_knowledge = {
+                'id' : 'test001',
+                'type' : 'multiple_choice',
+                'content' : '这是一道测试题目',
+                'options' : 'A.选项1|B.选项2|C.选项3|D.选项4',
+                'answer' : 'A',
+                'explanation' : '这是答案解释',
+                'checked' : 0,
+                'tts_file' : None
+            }
+            add_knowledge(test_knowledge, section_id)
+            print("示例数据添加完成")
+
+        # 5. 尝试加载数据
+        print("开始加载数据...")
+        data = load_data()
+        print("数据加载成功!")
+
+        # 6. 启动 Flask 应用
+        print("启动 Web 服务器...")
+        app.run(host='0.0.0.0', port=5000, debug=True)
+
+    except sqlite3.Error as e :
+        print(f"数据库错误: {e}")
+        raise
+    except Exception as e :
+        print(f"程序启动时出错: {e}")
+        raise
