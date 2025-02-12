@@ -6,284 +6,14 @@ import copy
 import uuid
 import gzip
 import asyncio
+import sqlite3
 import websockets
 import subprocess
 import threading
-import sqlite3
-
-from flask import (
-    Flask,
-    request,
-    redirect,
-    url_for,
-    render_template_string,
-    jsonify,
-    Response,
-    send_file,
-)
+from flask import Flask, request, redirect, url_for, render_template_string, jsonify, Response, send_file
 from openai import OpenAI
 
-########################################################
-# ========  在顶部统一维护 3 个 API 的配置  =============
-########################################################
-
-# 生成选择题用API 1 (优先用)：
-# MC_BASE_URL_1 = "https://api.lkeap.cloud.tencent.com/v1"  # 腾讯
-# MC_API_KEY_1 = "sk-UlNb7Jyfw32kST9Bv4pmwvfMqmHRJJM9KMF6FmFCo5zLwryt"
-# MC_MODEL_NAME_1 = "deepseek-r1"
-
-MC_BASE_URL_1 = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里
-MC_API_KEY_1 = "sk-0cf4070025924d03a4b505e892f3bf9f"
-MC_MODEL_NAME_1 = "deepseek-r1"
-
-# 生成选择题用API 2（备用）：
-
-MC_BASE_URL_2 = "https://api.siliconflow.cn/v1"  # 硅基
-MC_API_KEY_2 = "sk-qumbdboezpbyzdjqskflttyrkjbjvuqaihqmkrcgniiqusag"
-MC_MODEL_NAME_2 = "Pro/deepseek-ai/DeepSeek-R1"
-
-# 纠错用：
-
-CHECK_BASE_URL = "https://api.siliconflow.cn/v1"  # 硅基
-CHECK_API_KEY = "sk-qumbdboezpbyzdjqskflttyrkjbjvuqaihqmkrcgniiqusag"
-CHECK_MODEL_NAME = "Qwen/Qwen2.5-72B-Instruct-128K"
-
-# 分别实例化两个 Client（选择题的API1和API2）和一个纠错 Client
-client_mc1 = OpenAI(api_key=MC_API_KEY_1, base_url=MC_BASE_URL_1)
-client_mc2 = OpenAI(api_key=MC_API_KEY_2, base_url=MC_BASE_URL_2)
-client_check = OpenAI(api_key=CHECK_API_KEY, base_url=CHECK_BASE_URL)
-
-########################################################
-#  --  以下是 TTS 的配置和核心函数整合  --
-########################################################
-
-# 你提供的配置信息TTS  (不要改动)
-appid = "6959536185"
-token = "pCff9XSFyC2PZxQvq86zORVQ8jmnzGpA"
-cluster = "volcano_tts"
-voice_type = "zh_female_linjianvhai_moon_bigtts"
-host = "openspeech.bytedance.com"
-api_url = f"wss://{host}/api/v1/tts/ws_binary"
-
-# 默认的头
-default_header = bytearray(b"\x11\x10\x11\x00")
-
-# 模板 JSON
-request_json = {
-    "app": {"appid": appid, "token": "access_token", "cluster": cluster},
-    "user": {"uid": "2103133273"},
-    "audio": {
-        "voice_type": voice_type,
-        "encoding": "mp3",
-        "speed_ratio": 1.0,
-        "volume_ratio": 1.0,
-        "pitch_ratio": 1.0,
-    },
-    "request": {
-        "reqid": "",  # 每次动态生成
-        "text": "",  # 待合成文本
-        "text_type": "plain",
-        "operation": "submit",
-    },
-}
-
-
-def get_db_connection():
-    conn = sqlite3.connect('database.db')
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def parse_response(res, file):
-    message_type = res[1] >> 4
-    message_type_specific_flags = res[1] & 0x0F
-    header_size = res[0] & 0x0F
-    payload = res[header_size * 4 :]
-
-    if message_type == 0xB:  # audio-only server response
-        if message_type_specific_flags == 0:  # no sequence number as ACK
-            return False
-        else:
-            sequence_number = int.from_bytes(payload[:4], "big", signed=True)
-            payload_size = int.from_bytes(payload[4:8], "big", signed=False)
-            payload = payload[8:]
-            file.write(payload)
-            if sequence_number < 0:
-                return True
-            else:
-                return False
-    elif message_type == 0xF:
-        return True
-    elif message_type == 0xC:
-        return False
-    else:
-        return True
-
-
-# 核心异步函数，发送文本到 TTS 接口，并把 mp3 保存到 out_path
-async def run_tts(text, out_path):
-    submit_req = copy.deepcopy(request_json)
-    submit_req["request"]["text"] = text
-    submit_req["request"]["reqid"] = str(uuid.uuid4())
-    submit_req["request"]["operation"] = "submit"
-
-    payload_bytes = json.dumps(submit_req, ensure_ascii=False).encode("utf-8")
-    payload_bytes = gzip.compress(payload_bytes)
-
-    full_client_request = bytearray(default_header)
-    full_client_request.extend((len(payload_bytes)).to_bytes(4, "big"))
-    full_client_request.extend(payload_bytes)
-
-    with open(out_path, "wb") as fout:
-        header = {"Authorization": f"Bearer; {token}"}
-        async with websockets.connect(
-            api_url, extra_headers=header, ping_interval=None
-        ) as ws:
-            await ws.send(full_client_request)
-            while True:
-                res = await ws.recv()
-                done = parse_response(res, fout)
-                if done:
-                    break
-    return True
-
-
-########################################################
-# 1) 带“重试”功能的函数 (生成选择题) - 修改model参数为动态传入
-########################################################
-def call_api_with_retry(client, model_name, messages, max_retries=5):
-    last_exception = None
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                temperature=0.5,
-                timeout=120,
-                stream=False,
-            )
-
-            # 检查响应基本结构
-            if not response or not hasattr(response, "choices") or not response.choices:
-                time.sleep(3)
-                continue
-
-            content_str = response.choices[0].message.content.strip()
-
-            # 清理可能的额外标记
-            cleaned_content = re.sub(
-                r"^```json\s*|\s*```$",
-                "",
-                content_str,
-                flags=re.IGNORECASE | re.MULTILINE,
-            ).strip()
-
-            try:
-                # 尝试解析 JSON
-                parsed_data = json.loads(cleaned_content)
-
-                # 验证数据结构
-                if isinstance(parsed_data, list):
-                    for item in parsed_data:
-                        if not all(
-                            k in item
-                            for k in ["question", "options", "answer", "explanation"]
-                        ):
-                            raise ValueError("选择题数据结构不完整")
-                elif isinstance(parsed_data, dict):
-                    if not all(
-                        k in parsed_data
-                        for k in ["question", "options", "answer", "explanation"]
-                    ):
-                        raise ValueError("选择题数据结构不完整")
-                else:
-                    raise ValueError("无效的数据类型")
-
-                return parsed_data
-
-            except json.JSONDecodeError as e:
-                print(
-                    f"[call_api_with_retry] 第 {attempt + 1} 次尝试: JSON 解析失败: {e}"
-                )
-                print("原始内容:", content_str)
-                time.sleep(3)
-                continue
-
-            except ValueError as e:
-                print(
-                    f"[call_api_with_retry] 第 {attempt + 1} 次尝试: 数据验证失败: {e}"
-                )
-                time.sleep(3)
-                continue
-
-        except Exception as e:
-            print(f"[call_api_with_retry] 第 {attempt + 1} 次尝试失败: {e}")
-            last_exception = e
-            time.sleep(3)
-
-    print(f"[call_api_with_retry] 所有 {max_retries} 次尝试均失败")
-    return None
-
-
-########################################################
-# 1-扩展) 两阶段调用：先用API1, 失败后再用API2（关键修改）
-########################################################
-def call_mc_api_two_stage(messages):
-    # 先尝试 API1（使用对应的模型名称）
-    result = call_api_with_retry(client_mc1, MC_MODEL_NAME_1, messages, max_retries=5)
-    if result is not None:
-        return result
-    # 如果API1失败，再尝试 API2（使用对应的模型名称）
-    result = call_api_with_retry(client_mc2, MC_MODEL_NAME_2, messages, max_retries=3)
-    return result  # 可能是None，也可能成功了
-
-
-########################################################
-# 1-扩展) 新增纠错“重试”函数
-########################################################
-def call_check_api_with_retry(client, messages, max_retries=10):
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model=CHECK_MODEL_NAME,
-                messages=messages,
-                temperature=0.7,
-                timeout=120,
-                stream=False,
-            )
-            content_str = response.choices[0].message.content.strip()
-            print("纠错API返回内容:", content_str)
-
-            # 提取可能被包裹的JSON
-            json_match = re.search(
-                r"```(?:json)?\s*({.*?})\s*```", content_str, re.DOTALL
-            )
-            if json_match:
-                content_str = json_match.group(1).strip()
-            else:
-                content_str = content_str.strip("``` ").strip()
-
-            # 解析JSON并处理键名不匹配问题
-            parsed_data = json.loads(content_str)
-
-            # 关键修改：将"corrected"映射到"original"
-            if "corrected" in parsed_data:
-                return {"original": parsed_data["corrected"]}
-            else:
-                return parsed_data  # 其他情况保持原样
-
-        except Exception as e:
-            print(f"[call_check_api_with_retry] 第 {attempt + 1} 次失败, 错误: {e}")
-            time.sleep(2 if attempt == 0 else 5)
-    print("[call_check_api_with_retry] 多次重试后依然失败")
-    return None
-
-
-########################################################
-# 2) Flask 应用本身（只在此处实例化一次）
-########################################################
-app = Flask(__name__)
-
-# 初始化数据库
+# 创建 SQLite 数据库和表
 def init_db():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
@@ -327,6 +57,13 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+# 更新 Flask 应用以使用 SQLite 数据库
+
+app = Flask(__name__)
+
+# 初始化数据库
+init_db()
 
 def get_db_connection():
     conn = sqlite3.connect('database.db')
@@ -393,6 +130,12 @@ def save_data(data):
 
     conn.commit()
     conn.close()
+
+# 读取和保存数据示例
+data = load_data()
+save_data(data)
+
+
 
 # 读取和保存数据示例
 data = load_data()
